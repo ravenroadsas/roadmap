@@ -1,0 +1,37 @@
+#' Roadmap tab UI: filters + KPI list | canvas (client-side) | detail panel
+mod_roadmap_ui <- function(id, data) {
+  ns <- NS(id)
+  grp_choices <- stats::setNames(GROUPS$id, GROUPS$name)
+  tags$div(class = "rm-root",
+    shiny::uiOutput(ns("strip")),
+    tags$div(class = "grid3",
+      tags$aside(class = "side",
+        tags$div(class = "box",
+          tags$div(class = "bh", tags$h2("Filters"),
+                   shiny::actionLink(ns("reset_filters"), "Reset", class = "sp", style = "font-size:11px")),
+          tags$div(class = "fsec", tags$span(class = "flabel", "Process"),
+            shiny::checkboxGroupInput(ns("process"), NULL,
+              choices = stats::setNames(data$process$id, data$process$name),
+              selected = data$process$id)),
+          tags$div(class = "fsec", tags$span(class = "flabel", "Enabler group"),
+            shiny::checkboxGroupInput(ns("group"), NULL, choices = grp_choices, selected = GROUPS$id)),
+          tags$div(class = "fsec",
+            shiny::textInput(ns("query"), NULL, placeholder = "Search KPI or enabler\u2026"))),
+        tags$div(class = "box",
+          tags$div(class = "bh", tags$h2("KPIs"), tags$span(class = "sp hint rm-kcount")),
+          tags$div(class = "klist rm-klist"))),
+      tags$div(class = "canvas box",
+        tags$div(class = "bh",
+          tags$span(class = "flabel", "View"),
+          tags$div(class = "seg seg-lg", role = "group", `aria-label` = "View",
+            tags$button(`data-view` = "timeline", `aria-pressed` = "true", "Timeline ", tags$small("when")),
+            tags$button(`data-view` = "chain", `aria-pressed` = "false", "Value chain ", tags$small("how it connects"))),
+          tags$label(class = "toggle sp", tags$input(type = "checkbox", class = "rm-alldeps"), "Show all dependencies")),
+        tags$div(class = "vizscroll", tags$div(class = "rm-viz", id = ns("viz"))),
+        tags$div(class = "legend rm-legend")),
+      tags$aside(class = "detail box",
+        tags$div(class = "bh", tags$h2(shiny::textOutput(ns("detail_title"), inline = TRUE)),
+                 tags$button(class = "lk sp rm-clearsel", style = "font-size:11px", hidden = NA, "Clear selection")),
+        tags$div(class = "dbody", shiny::uiOutput(ns("detail")))))
+  )
+}

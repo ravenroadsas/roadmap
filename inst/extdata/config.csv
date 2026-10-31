@@ -1,0 +1,10 @@
+key,label,unit,value,min,max,step,low,high,is_pct,in_sensitivity,description
+oil_price,Brent price,$/bbl,75,45,110,1,55,95,FALSE,TRUE,Scales value of KPIs driven by oil price
+realization,KPI target realisation,%,0.7,0.3,1,0.05,0.5,0.9,TRUE,TRUE,Share of target delta actually achieved
+adoption_delay,Adoption lag after go-live,yr,0.5,0,2,0.25,0,1.5,FALSE,TRUE,Time between enabler readiness and first benefit
+ramp_years,Ramp to full benefit,yr,2,0.5,4,0.5,1,3,FALSE,TRUE,Linear ramp from first to full benefit
+capex_overrun,Capex overrun,%,0.15,0,0.6,0.05,0,0.4,TRUE,TRUE,Contingency applied to every enabler
+fte_cost,Loaded FTE cost,$k/yr,140,80,220,5,110,170,FALSE,TRUE,Internal manpower cost; also scales labour-driven value
+partner_premium,Partner premium,%,0.35,0,1,0.05,0.15,0.6,TRUE,TRUE,Contractor / ally cost above internal FTE
+discount_rate,Discount rate,%,0.1,0.04,0.18,0.01,0.06,0.14,TRUE,TRUE,WACC used for NPV
+horizon_end,Value horizon end,year,2033,2029,2035,1,2031,2035,FALSE,FALSE,Last year counted in cost and value

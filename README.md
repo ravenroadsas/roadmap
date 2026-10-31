@@ -2,9 +2,9 @@
 
 Interactive roadmap that links **enablers** (investments) to **processes**, **KPIs** and **value**, with a sensitivity analysis on the main assumptions.
 
-> **Status: mockup for review.** `mockup/index.html` is a self-contained HTML prototype with sample data (oil & gas). Open it in a browser. It shows the UX and the calculation logic before we build the Shiny app.
+> **Status:** Shiny app v0.1 built as the R package `dtroadmap` (see below). `mockup/index.html` keeps the approved HTML prototype as the design reference.
 
-## What the mockup shows
+## What the app shows
 
 | Tab | Purpose |
 |---|---|
@@ -38,11 +38,50 @@ The three resource types map to columns: money (`capex`, `opex`), manpower and e
 - **Cost allocation**: each direct enabler is split across KPIs by link weight; foundation enablers pass their cost to the KPIs of their dependents, so shared infrastructure is spread rather than double-counted.
 - **Portfolio**: NPV at the discount rate, ROI = (value − cost) / cost, payback = first year cumulative net ≥ 0.
 
-## Planned Shiny build (after approval)
+## Shiny app (R package `dtroadmap`)
 
-- R package (`golem`-style): functions in `R/fct_*.R`, one `mod_<tab>_ui.R` / `mod_<tab>_server.R` per tab, separate `inst/app/www/styles.css`.
-- Data access isolated in `R/data_access.R` (duckdb in development, swappable to SQL Server/Postgres later).
-- Config on a `pins` board (CSV fallback); secrets only in environment variables.
-- `echarts4r` for sensitivity charts. The timeline and dependency graph will be a small htmlwidget or JS module so highlighting runs client-side.
-- Pure calculation functions (`cost_profile()`, `value_profile()`, `allocate_cost()`, `portfolio()`) tested with `testthat`.
-- Posit Connect: `session$user` / groups decide the Public vs Management view.
+```
+R/
+  data_access.R          all DB interaction (DuckDB in dev, RSQLite fallback, DBI for SQL Server/Postgres later)
+  config.R               config from a pin (ROADMAP_PINS_BOARD) or inst/extdata/config.csv
+  fct_graph.R            dependency graph, validation, weights, cost allocation, ready dates
+  fct_model.R            cost_profile(), value_profile(), run_model(), portfolio(), tornado()
+  fct_payload.R          data sent to the browser canvas
+  fct_detail.R           detail panel (KPI / enabler / process / portfolio)
+  fct_charts.R           sensitivity chart data (tested) + echarts4r rendering, summary strip
+  utils.R                formatting, Posit Connect user access, audience filter
+  mod_roadmap_ui/server.R, mod_sensitivity_ui/server.R, mod_datamodel_ui/server.R
+  app_ui.R, app_server.R, run_app.R
+inst/app/www/            styles.css, roadmap.js (timeline, value chain, highlighting, client-side)
+inst/extdata/            seed CSVs, one per table + config.csv
+inst/sql/schema.sql      DDL
+tests/testthat/          unit tests for every function layer
+app.R                    Posit Connect entry point
+```
+
+### Run
+
+```r
+# install.packages(c("shiny", "DBI", "duckdb", "echarts4r", "jsonlite", "pins", "testthat", "pkgload"))
+pkgload::load_all(); run_app()        # or: shiny::runApp()
+devtools::test()
+```
+
+### Environment variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `ROADMAP_DB_PATH` | DuckDB file; seeded from CSV on first run | in-memory |
+| `ROADMAP_DB_DRIVER` | `duckdb`, `sqlite` or `auto` | `auto` |
+| `ROADMAP_PINS_BOARD` | `connect` or `folder` to read config from a pin | CSV |
+| `ROADMAP_PINS_PATH` | folder for a folder board | |
+| `ROADMAP_MGMT_GROUPS` | Connect groups allowed to switch to the Management view (comma separated) | none |
+| `ROADMAP_LOCAL_PUBLIC_ONLY` | `true` to test the public-only view locally | |
+
+On Posit Connect, users outside `ROADMAP_MGMT_GROUPS` only see the Public view (no private KPIs or milestones). Locally, both views are available.
+
+### Performance
+
+- Data, graph and config load once per R process and are shared by all sessions (`app_context()`).
+- The roadmap canvas renders in the browser: clicks, highlighting, hover and view switching never call R. R only sends a new payload when filters, audience or assumptions change.
+- Inputs are debounced; the model is vectorised and runs in milliseconds for this size. When the portfolio grows, the cost/value profiles can move to SQL views in DuckDB, or to a plumber API shared with other tools.

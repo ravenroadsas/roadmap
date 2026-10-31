@@ -1,0 +1,23 @@
+Package: dtroadmap
+Title: Digital Transformation Roadmap Dashboard
+Version: 0.1.0
+Authors@R: person("Frenk", "Giorgetti", email = "frenk.giorgetti@gmail.com", role = c("aut", "cre"))
+Description: Shiny app that links transformation enablers to processes, KPIs
+    and value. Calculates cost and value profiles from a small set of
+    configurable assumptions and runs a sensitivity analysis on them.
+License: file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1)
+Imports:
+    DBI,
+    echarts4r,
+    htmltools,
+    jsonlite,
+    shiny,
+    utils
+Suggests:
+    duckdb,
+    pins,
+    RSQLite,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

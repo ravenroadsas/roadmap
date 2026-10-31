@@ -1,0 +1,9 @@
+id,milestone_date,name,enabler_id,visibility
+M1,2026-12,Cloud landing zone live,E11,public
+M2,2027-03,Data platform MVP,E08,public
+M3,2027-06,Connectivity on 80% of sites,E12,public
+M4,2027-12,Procurement touchless for catalogue items,E07,public
+M5,2028-06,Predictive maintenance on critical equipment,E04,public
+M6,2028-12,Digital twin for all new wells,E13,private
+M7,2029-03,Agents steer 60% of production decisions,E05,private
+M8,2029-06,Robot inspection fleet at scale,E14,public
