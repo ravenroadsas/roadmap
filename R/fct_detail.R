@@ -161,9 +161,13 @@ detail_enabler <- function(data, model, id, kpi_ids) {
        list(sprintf("%s int \u00b7 %s ext", e$fte_internal, e$fte_partner), paste0(fmt_musd(people), "/yr"),
             cls(fmt_musd(sum(model$cost[id, ])), "neg"))),
     enabler_issue_ui(g$issues, id),
-    kv(c("Compressible", "Scenario end", "Crash cost"),
-       list(fmt_pct(sch$compressibility), time_to_q(ceiling(sch$end * 4 - 1e-9) / 4 - 0.25),
-            if (sch$compression > 0) cls(paste0("+", fmt_pct(sch$cost_factor - 1)), "neg") else "\u2013")),
+    kv(c("Scalability", "Scenario end", "Build cost vs plan"),
+       list(scalability_label(sch$scalability),
+            paste0(time_to_q(ceiling(sch$end * 4 - 1e-9) / 4 - 0.25),
+                   if (sch$compression > 0.005) sprintf(" (\u2212%.0f%%)", sch$compression * 100) else ""),
+            cls(sprintf("%+.0f%%", (sch$cost_factor - 1) * 100),
+                if (sch$cost_factor > 1.005) "neg" else if (sch$cost_factor < 0.995) "pos" else ""))),
+    spend_table(model, id),
     tags$div(class = "callout",
       if (dv > 0) tagList("Direct value attributed: ", tags$b(fmt_musd(dv)), sprintf(" to %s. ", cfg$horizon_end))
       else tagList(tags$b("Foundation enabler"), ": no direct KPI, its cost is shared by everything built on it. "),
@@ -216,4 +220,28 @@ enabler_issue_ui <- function(issues, id) {
   x <- issues[issues$enabler_id == id | (!is.na(issues$related_id) & issues$related_id == id), ]
   if (!nrow(x)) return(NULL)
   tags$div(class = "callout issue", tags$b("Date issue: "), paste(x$message, collapse = "; "))
+}
+
+scalability_label <- function(x) {
+  paste(formatC(x, format = "f", digits = 1),
+        if (x == 0) "rigid" else if (x < 0.95) "diminishing" else if (x <= 1.05) "linear" else "super-linear")
+}
+
+#' Yearly expenditure of one enabler: plan vs scenario
+spend_table <- function(model, id) {
+  plan <- model$plan_cost[id, ]
+  scen <- model$cost[id, ]
+  keep <- which(plan > 0.005 | scen > 0.005)
+  if (!length(keep)) return(NULL)
+  changed <- any(abs(plan - scen) > 0.005)
+  tags$div(tags$div(class = "eyebrow", "Expenditure per year ($M)"),
+    tags$table(class = "t",
+      tags$thead(tags$tr(tags$th("Year"), tags$th(class = "r", "Plan"),
+                         if (changed) tags$th(class = "r", "Scenario"))),
+      tags$tbody(lapply(keep, function(i) tags$tr(
+        tags$td(class = "mono", names(plan)[i]),
+        tags$td(class = "r", formatC(plan[i], format = "f", digits = 2)),
+        if (changed) tags$td(class = "r", formatC(scen[i], format = "f", digits = 2))))),
+      tags$tfoot(tags$tr(tags$td("Total"), tags$td(class = "r", formatC(sum(plan), format = "f", digits = 1)),
+                         if (changed) tags$td(class = "r", formatC(sum(scen), format = "f", digits = 1))))))
 }

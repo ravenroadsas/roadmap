@@ -5,39 +5,47 @@ overlap <- function(a, b, y) pmax(0, pmin(b, y + 1) - pmax(a, y))
 
 #' Scenario schedule for each enabler
 #'
-#' Each enabler has a `compressibility` (0-0.9): the largest share of its
-#' duration that extra resources can remove. The scenario lever
-#' `acceleration` (0-1) sets how much of that room is used, so the
-#' compression is c = acceleration x compressibility and the duration
-#' becomes d x (1 - c). Start dates do not move.
+#' The scenario lever `resource_multiplier` (r, 1 = plan) adds resources
+#' to every enabler. Each enabler's `scalability` (s) says how its
+#' duration responds:
 #'
-#' Compression is not free and not linear: doing the same work in
-#' (1 - c) of the time needs (1 - c)^-k times the people, with
-#' k = `crash_exponent` (1 = linear). Total build effort and capex
-#' therefore scale by cost_factor = (1 - c)^(1 - k).
+#'   duration = plan duration x r^(-s)        (start date fixed)
 #'
-#' An enabler that ends before it starts is treated as one quarter long.
+#' * s = 1: linear. Double the resources, half the time, same total cost.
+#' * s > 1: scales better than linear (e.g. many independent work
+#'   packages). The time saved is more than proportional and total cost falls.
+#' * 0 < s < 1: diminishing returns. Each extra resource buys less time
+#'   and total cost rises.
+#' * s = 0: rigid. Extra resources would not shorten it, so none are
+#'   added and the enabler keeps its plan dates and cost.
+#'
+#' Total build effort (people and capex) scales by r x duration / plan duration
+#' = r^(1 - s). The same spend is squeezed into fewer quarters, so yearly
+#' expenditure rises (see cost_profile()). Durations never go below one
+#' quarter, and an enabler that ends before it starts counts as one quarter long.
 schedule <- function(enabler, cfg) {
   s <- q_to_time(enabler$start_q)
   f_plan <- q_to_time(enabler$end_q, end = TRUE)
   d_plan <- pmax(f_plan - s, 0.25)
-  comp <- enabler$compressibility
-  if (is.null(comp)) comp <- rep(0, nrow(enabler))
-  comp <- pmin(pmax(ifelse(is.na(comp), 0, comp), 0), 0.9)
-  c <- (cfg$acceleration %||% 0) * comp
-  k <- cfg$crash_exponent %||% 1
-  d <- d_plan * (1 - c)
+  sc <- enabler$scalability
+  if (is.null(sc)) sc <- rep(0, nrow(enabler))
+  sc <- pmin(pmax(ifelse(is.na(sc), 0, sc), 0), 2)
+  r <- max(1, cfg$resource_multiplier %||% 1)
+  r_e <- ifelse(sc > 0, r, 1)                         # no resources wasted on rigid enablers
+  d <- pmax(d_plan * r_e^(-sc), pmin(d_plan, 0.25))
   data.frame(id = enabler$id, start = s, end_plan = f_plan, end = s + d,
-             duration_plan = d_plan, duration = d, compressibility = comp,
-             compression = c, people_factor = (1 - c)^(-k),
-             cost_factor = (1 - c)^(1 - k), stringsAsFactors = FALSE)
+             duration_plan = d_plan, duration = d, scalability = sc,
+             resources = r_e, compression = 1 - d / d_plan,
+             people_factor = r_e, cost_factor = r_e * d / d_plan,
+             stringsAsFactors = FALSE)
 }
 
 #' Yearly cost of each enabler
 #'
-#' capex x (1 + overrun) x crash cost factor, spread over the (scenario)
-#' build; people cost during the build, scaled up when compressed (partner
-#' FTE at a premium); opex from go-live to the horizon.
+#' capex x (1 + overrun) x effort factor, spread evenly over the
+#' scenario build (start fixed, end per schedule()); people cost per year
+#' x resource multiplier during the build (partner FTE at a premium); opex
+#' from the scenario go-live to the horizon.
 #' @param sched output of schedule(); computed from cfg when missing.
 #' @return matrix enabler x year.
 cost_profile <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
@@ -101,11 +109,14 @@ run_model <- function(data, graph, cfg, base = cfg) {
   sched <- schedule(data$enabler, cfg)
   ready <- kpi_ready(graph, sched)
   cost <- cost_profile(data$enabler, cfg, years, sched)
+  plan_cfg <- cfg
+  plan_cfg$resource_multiplier <- 1
+  plan_cost <- cost_profile(data$enabler, plan_cfg, years)
   value <- value_profile(data$kpi, ready, cfg, base, years)
   list(
     cfg = cfg, years = years, start = start,
     schedule = sched, ready = ready,
-    cost = cost, value = value,
+    cost = cost, plan_cost = plan_cost, value = value,
     run_rate = attr(value, "run_rate"),
     discount = 1 / (1 + cfg$discount_rate)^(years - start),
     graph = graph

@@ -56,7 +56,7 @@ function renderTimeline(H){
       let cls='';if(H)cls=H.direct.has(e.id)?'on':H.en.has(e.id)?'found':'off';
       if(S.sel&&S.sel.type==='enabler'&&S.sel.id===e.id)cls+=' sel';
       const iss=IS.ids.has(e.id)||e.issue;if(iss)cls+=' issue';
-      const comp=e.compression>0?`<br>Compressed ${Math.round(e.compression*100)}% (plan ends ${e.end})`:'';
+      const comp=e.compression>0?`<br>${Math.round(e.compression*100)}% shorter with extra resources (plan ends ${e.end})`:'';
       const ghost=e.compression>0?`<rect class="plan-ghost" x="${x1}" y="${cy-6}" width="${Math.max(3,x(e.t1_plan)-x1)}" height="12" rx="2"/>`:'';
       const nm=(iss?'⚠ ':'')+(e.name.length>32?e.name.slice(0,31)+'…':e.name);
       body.push(`<g class="bar ${cls}" data-sel="enabler:${e.id}" data-tip="<b>${esc(e.name)}</b><br>${esc(g.name)} › ${esc(e.sub)}<br>${e.start} – ${e.end}${comp}<br>Capex ${fmtM(e.capex)} · Opex ${fmtM(e.opex)}/yr<br>FTE ${e.fte_int} internal · ${e.fte_ext} partner${e.issue?'<br><b>⚠ '+esc(e.issue)+'</b>':''}">
@@ -75,7 +75,7 @@ function renderTimeline(H){
     if(a.x2<=b.x1+1){const mx=(a.x2+b.x1)/2;edges.push(`<path class="edge ${ec}" d="M${a.x2},${a.cy}C${Math.max(mx,a.x2+18)},${a.cy} ${Math.min(mx,b.x1-18)},${b.cy} ${b.x1-1},${b.cy}" marker-end="${mk}"/>`)}
     else{const xt=clamp(a.x2,b.x1,b.x2);edges.push(`<circle cx="${a.x2}" cy="${a.cy}" r="2" class="arrowhead ${bad?'issue':''}" ${on||bad?'':'opacity=".2"'}/><path class="edge ${ec}" d="M${a.x2},${a.cy+sg*6}L${bad?a.x2:xt},${b.cy-sg*8}" marker-end="${mk}"/>`)}}));
   box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Enabler timeline"><defs><marker id="rm-ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead" d="M0,0L6,3L0,6Z"/></marker><marker id="rm-ahr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead issue" d="M0,0L6,3L0,6Z"/></marker></defs>${grid.join('')}${body.join('')}${edges.join('')}</svg>`;
-  legend(`<span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>direct enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>◇ milestone</span><span>label = capex incl. overrun & crash cost</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" class="plan-ghost"/></svg>plan duration (when compressed)</span><span style="color:var(--neg)">⚠ red = date issue</span>`)}
+  legend(`<span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>direct enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>◇ milestone</span><span>label = capex incl. overrun, scenario effort</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" class="plan-ghost"/></svg>plan duration (when shortened)</span><span style="color:var(--neg)">⚠ red = date issue</span>`)}
 
 function renderChain(H){
   const p=S.p,box=q('.rm-viz'),W=Math.max(700,box.parentElement.clientWidth-4);const ens=p.enablers.filter(e=>e.show);const ks=p.kpis.filter(k=>k.show);

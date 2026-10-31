@@ -63,8 +63,10 @@ db_init <- function(con, seed_dir = app_sys("extdata")) {
 
 #' Add columns introduced after a database file was created
 db_migrate <- function(con) {
-  if (!"compressibility" %in% DBI::dbListFields(con, "enabler")) {
-    DBI::dbExecute(con, "ALTER TABLE enabler ADD COLUMN compressibility DOUBLE DEFAULT 0")
+  # scalability replaces the short-lived compressibility column (different
+  # meaning, so values are not carried over: 0 = rigid until filled in)
+  if (!"scalability" %in% DBI::dbListFields(con, "enabler")) {
+    DBI::dbExecute(con, "ALTER TABLE enabler ADD COLUMN scalability DOUBLE DEFAULT 0")
   }
   invisible(con)
 }

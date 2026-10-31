@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS enabler (
   opex_musd_yr   DOUBLE DEFAULT 0,
   fte_internal   DOUBLE DEFAULT 0,                 -- expertise / manpower built internally
   fte_partner    DOUBLE DEFAULT 0,                 -- allies and contractors
-  compressibility DOUBLE DEFAULT 0,                -- max share of duration that more resources can cut (0-0.9)
+  scalability    DOUBLE DEFAULT 0,                 -- duration response to extra resources: 0 rigid, 1 linear, >1 better than linear
   visibility     VARCHAR NOT NULL DEFAULT 'public'
 );
 

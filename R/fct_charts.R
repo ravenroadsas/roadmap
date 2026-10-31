@@ -103,7 +103,7 @@ summary_strip <- function(data, model, kpi_ids) {
   h <- model$cfg$horizon_end
   stat <- function(l, v, s) tags$div(class = "stat", tags$div(class = "l", l), tags$div(class = "v", v), tags$div(class = "s", s))
   tags$div(class = "strip",
-    stat(paste("Investment to", h), fmt_musd(p$total_cost), paste("capex", fmt_musd(capex), "incl. overrun & crash")),
+    stat(paste("Investment to", h), fmt_musd(p$total_cost), paste("capex", fmt_musd(capex), "incl. overrun")),
     stat(paste("Value to", h), fmt_musd(p$total_value), "cumulative, realised"),
     stat("Run-rate value", paste0(fmt_musd(p$run_rate), "/yr"), "at full adoption"),
     stat(paste("NPV @", fmt_pct(model$cfg$discount_rate)), tags$span(class = sign_cls(p$npv), fmt_musd(p$npv)),

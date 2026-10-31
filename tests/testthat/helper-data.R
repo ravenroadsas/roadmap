@@ -17,7 +17,7 @@ tiny_data <- function() {
                          start_q = c("2026Q1", "2026Q3", "2026Q1"), end_q = c("2026Q4", "2027Q2", "2026Q2"),
                          capex_musd = c(4, 2, 1), opex_musd_yr = c(1, 0, 0),
                          fte_internal = c(0, 1, 0), fte_partner = c(0, 1, 0),
-                         compressibility = c(0, 0.5, 0.2), visibility = "public"),
+                         scalability = c(0, 1, 0.5), visibility = "public"),
     enabler_link = data.frame(enabler_id = c("E2", "E3", "E3"), kpi_id = c("K1", "K1", "K2"),
                               weight = c(3, 1, 1)),
     enabler_dependency = data.frame(enabler_id = "E2", requires_id = "E1"),
@@ -28,6 +28,6 @@ tiny_data <- function() {
 tiny_cfg <- function(...) {
   cfg <- list(oil_price = 75, realization = 1, adoption_delay = 0, ramp_years = 1,
               capex_overrun = 0, fte_cost = 100, partner_premium = 0, discount_rate = 0,
-              horizon_end = 2030, acceleration = 0, crash_exponent = 1.5)
+              horizon_end = 2030, resource_multiplier = 1)
   utils::modifyList(cfg, list(...))
 }

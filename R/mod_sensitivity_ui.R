@@ -32,7 +32,7 @@ mod_sensitivity_ui <- function(id, cfg_table) {
           tags$div(class = "cbody", echarts4r::echarts4rOutput(ns("kpis"), height = "300px"))),
         tags$div(class = "box wide",
           tags$div(class = "bh", tags$h2("KPI ready date"),
-                   tags$span(class = "sp hint", "end of enabler chain \u00b7 base vs scenario (acceleration)")),
+                   tags$span(class = "sp hint", "end of enabler chain \u00b7 base vs scenario (extra resources)")),
           tags$div(class = "cbody", echarts4r::echarts4rOutput(ns("ready"), height = "300px")))))
   )
 }

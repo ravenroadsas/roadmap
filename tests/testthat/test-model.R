@@ -71,43 +71,61 @@ test_that("tornado moves NPV in the expected direction on sample data", {
   expect_lt(o$npv_high, o$npv_low)
 })
 
-test_that("no acceleration keeps the plan schedule and costs", {
+test_that("plan resources keep the plan schedule and costs", {
   d <- tiny_data()
   sch <- schedule(d$enabler, tiny_cfg())
   expect_equal(sch$end, q_to_time(d$enabler$end_q, TRUE))
   expect_equal(sch$cost_factor, c(1, 1, 1))
 })
 
-test_that("acceleration shortens durations up to compressibility, with non-linear cost", {
+test_that("scalability: 0 rigid, 1 linear, <1 diminishing, >1 better than linear", {
   d <- tiny_data()
-  full <- schedule(d$enabler, tiny_cfg(acceleration = 1, crash_exponent = 2))
-  # E2: 1 year, compressibility 0.5 -> 0.5 year; E1 not compressible
-  expect_equal(full$duration, c(1, 0.5, 0.5 * 0.8))
-  expect_equal(full$people_factor[2], 4)        # (1 - 0.5)^-2
-  expect_equal(full$cost_factor[2], 2)          # (1 - 0.5)^(1 - 2)
-  lin <- schedule(d$enabler, tiny_cfg(acceleration = 1, crash_exponent = 1))
-  expect_equal(lin$cost_factor, c(1, 1, 1))     # linear: same effort, less time
-  half <- schedule(d$enabler, tiny_cfg(acceleration = 0.5, crash_exponent = 2))
-  # cost premium grows faster than compression
-  expect_gt((full$cost_factor[2] - 1) / (half$cost_factor[2] - 1),
-            full$compression[2] / half$compression[2])
-  expect_equal(schedule(transform(d$enabler, compressibility = 5), tiny_cfg(acceleration = 1))$compression[1], 0.9)
+  d$enabler$start_q <- "2026Q1"
+  d$enabler$end_q <- "2027Q4"                  # all 2 years long
+  sch <- function(sc, r) schedule(transform(d$enabler, scalability = sc), tiny_cfg(resource_multiplier = r))
+  rigid <- sch(0, 2)
+  expect_equal(rigid$duration, c(2, 2, 2))
+  expect_equal(rigid$cost_factor, c(1, 1, 1))  # no resources added to rigid enablers
+  lin <- sch(1, 2)
+  expect_equal(lin$duration, c(1, 1, 1))       # double resources, half the time
+  expect_equal(lin$cost_factor, c(1, 1, 1))    # same total cost
+  dim <- sch(0.5, 2)
+  expect_equal(dim$duration[1], 2 / sqrt(2))
+  expect_gt(dim$cost_factor[1], 1)             # diminishing returns cost more
+  sup <- sch(1.5, 2)
+  expect_lt(sup$duration[1], 1)
+  expect_lt(sup$cost_factor[1], 1)             # better than linear costs less
+  expect_equal(sch(2, 100)$duration[1], 0.25)  # never below one quarter
 })
 
-test_that("acceleration brings KPIs forward and raises build cost", {
+test_that("start is fixed and yearly expenditure is recalculated over the shorter build", {
+  d <- tiny_data()
+  d$enabler <- d$enabler[2, ]                  # E2: 2026Q3-2027Q2, linear
+  d$enabler$opex_musd_yr <- 0
+  d$enabler$fte_internal <- 0
+  d$enabler$fte_partner <- 0
+  plan <- cost_profile(d$enabler, tiny_cfg(), 2026:2028)
+  fast <- cost_profile(d$enabler, tiny_cfg(resource_multiplier = 2), 2026:2028)
+  expect_equal(unname(plan[1, ]), c(1, 1, 0))  # capex 2 over 2026.5-2027.5
+  expect_equal(unname(fast[1, ]), c(2, 0, 0))  # same capex, all in 2026.5-2027.0
+  expect_equal(schedule(d$enabler, tiny_cfg(resource_multiplier = 2))$start, 2026.5)
+})
+
+test_that("extra resources bring KPIs forward; model keeps plan costs for comparison", {
   d <- tiny_data()
   g <- build_graph(d)
   base <- tiny_cfg()
-  fast <- tiny_cfg(acceleration = 1)
+  fast <- tiny_cfg(resource_multiplier = 2)
   m0 <- run_model(d, g, base, base)
   m1 <- run_model(d, g, fast, base)
+  expect_equal(m1$ready[["K1"]], 2027.0)       # E1 rigid ends 2027.0; E2 halved ends 2027.0
   expect_lt(m1$ready[["K1"]], m0$ready[["K1"]])
-  expect_equal(m1$ready[["K1"]], 2027.0)        # E2 now ends 2027.0; E1 still 2027.0
-  expect_gt(sum(m1$cost["E2", ]), sum(m0$cost["E2", ]))
+  expect_equal(m1$plan_cost, m0$cost)
   expect_gt(sum(m1$value["K1", ]), sum(m0$value["K1", ]))
+  expect_gt(sum(m1$cost["E3", ]), sum(m0$cost["E3", ]))   # E3 diminishing: costs more
 })
 
-test_that("database without compressibility column is migrated", {
+test_that("database without scalability column is migrated", {
   skip_if_not(requireNamespace("RSQLite", quietly = TRUE) || requireNamespace("duckdb", quietly = TRUE))
   con <- db_connect(":memory:")
   on.exit(db_disconnect(con))
@@ -115,5 +133,5 @@ test_that("database without compressibility column is migrated", {
     name VARCHAR, start_q VARCHAR, end_q VARCHAR, capex_musd DOUBLE, opex_musd_yr DOUBLE,
     fte_internal DOUBLE, fte_partner DOUBLE, visibility VARCHAR)")
   db_init(con)
-  expect_true("compressibility" %in% DBI::dbListFields(con, "enabler"))
+  expect_true("scalability" %in% DBI::dbListFields(con, "enabler"))
 })

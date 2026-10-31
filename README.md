@@ -32,8 +32,8 @@ The three resource types map to columns: money (`capex`, `opex`), manpower and e
 
 ## Calculation logic
 
-- **Enabler cost / year** = capex × (1 + overrun), spread over the enabler's duration + FTE cost during the build (partner FTE × (1 + partner premium)) + opex from go-live to the horizon.
-- **Acceleration**: each enabler has a `compressibility` (max share of its duration that more resources can cut). The scenario lever `acceleration` (0–100%) uses that share of it: duration × (1 − acceleration × compressibility). Doing the same work faster needs (1 − c)^−k times the people (k = `crash_exponent`, 1 = linear, base 1.5), so build effort and capex rise by (1 − c)^(1 − k). Start dates stay fixed.
+- **Enabler cost / year** = capex × (1 + overrun), spread over the enabler's (scenario) duration + FTE cost during the build (partner FTE × (1 + partner premium)) + opex from go-live to the horizon.
+- **Extra resources**: the scenario lever `resource_multiplier` (r, 1 = plan) puts more resources on every enabler. Each enabler's `scalability` (s) sets the response: duration × r^(−s), with the start date fixed. s = 0 is rigid (no resources added, no change), s = 1 is linear (half the time at the same total cost), s < 1 gives diminishing returns (total cost rises as r^(1−s)), and s > 1 is better than linear (total cost falls). The same capex and people effort are spread over the shorter build, so yearly expenditure is recalculated. Opex starts at the new go-live. The enabler detail panel shows plan vs scenario spend per year.
 - **KPI ready date** = latest (scenario) end date across its direct enablers and all their prerequisites.
 - **Date issues** (an end before the start, or a prerequisite going live after the enabler that needs it) don't block loading. They're shown in red on the timeline, value chain and detail panel. Missing references and dependency cycles still stop the app at startup.
 - **KPI value / year** = `value_musd` × realisation × driver factor (oil price / base or FTE cost / base) × adoption ramp (starts after the adoption lag, linear over the ramp years).
