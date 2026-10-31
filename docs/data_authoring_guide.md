@@ -1,6 +1,6 @@
 # Roadmap data authoring guide (for AI agents)
 
-You are helping build a digital transformation roadmap for 2026–2029. The company is moving its processes to an integrated system of **humans, AI agents and robots**. Each agent works on **one business process at a time**. Your job is to turn what you learn about that process into rows for the roadmap database, in the exact format below.
+You are helping build a digital transformation roadmap for 2026–2029. The company is moving its processes to an integrated system of **humans, AI agents and robots**. You work through the business processes **one at a time**, and you are the only agent writing this data. Your job is to turn what you learn about that process into rows for the roadmap database, in the exact format below.
 
 Your output is loaded straight into a database and a dashboard. Rows in the wrong format get rejected. Follow the format exactly, and keep your reasoning in the notes section (see [Output format](#output-format)), never in the data rows.
 
@@ -23,6 +23,7 @@ investment ──► ENABLER ──(weight)──► KPI ──► PROCESS
 - A **milestone** is a visible checkpoint delivered by one enabler.
 
 The dashboard calculates the following. You don't compute any of it, but your numbers drive it:
+- **Acceleration scenarios**: each enabler can be shortened by up to its `compressibility`, at a cost premium that grows faster than the time saved.
 - **Cost per year**: capex is spread over the build period. People cost is counted during the build, with partner staff at a premium. Opex runs from go-live to the end of the horizon.
 - **KPI ready date**: the latest end date across the KPI's enablers and all of their prerequisites.
 - **Value per year**: `value_musd` × the share of the target achieved × the driver factor × the adoption ramp after the ready date.
@@ -90,6 +91,7 @@ Rules:
 | `opex_musd_yr` | number | Running cost per year after go-live, in $M |
 | `fte_internal` | number | Average internal people (FTE) working on the build: expertise or manpower that is **built or hired internally** |
 | `fte_partner` | number | Average FTE from **allies, vendors and contractors** during the build |
+| `compressibility` | number 0–0.9 | Largest share of the duration that **more resources** could cut. See 2.3.1. |
 | `visibility` | `public` \| `private` | Usually `public` |
 
 Enabler groups and typical subcategories:
@@ -106,6 +108,26 @@ Rules:
 - Agentic and robotic enablers should state in the notes what the agent or robot does and what humans keep doing.
 - Don't put the same money in two places: `capex_musd` covers vendor implementation, and `fte_partner` covers people time from partners. Keep them separate and estimate each.
 - Builds usually take 2 to 8 quarters. Anything longer than 8 quarters should be split into phases, with each phase as its own enabler linked by a dependency.
+
+#### 2.3.1 Compressibility
+
+`compressibility` answers one question: *with unlimited budget and people, how much shorter could this enabler realistically be?* `0.3` means at most 30% shorter.
+
+The app's Sensitivity tab has an **Acceleration** lever. It uses a share of every enabler's compressibility at once and adds a cost premium that grows faster than the time saved, because more people bring more coordination overhead. So you don't need to model the cost of speeding up. Only give the limit.
+
+Typical values:
+
+| kind of enabler | compressibility | why |
+|---|---|---|
+| Software configuration, cloud setup, automation (RPA) | 0.35–0.45 | parallel teams and more vendors help |
+| AI/ML models, digital twins, data integration | 0.25–0.35 | limited by data availability and testing cycles |
+| AI agents in operations | 0.2–0.3 | limited by trust building and supervised running |
+| Hardware, networks, robots, drones | 0.15–0.25 | procurement lead times, site access, certification |
+| Organisation design, training | 0.15–0.3 | people need time to learn |
+| Change management, adoption programmes | 0–0.1 | behaviour change cannot be bought faster |
+| Regulatory or contractual steps | 0 | fixed external timelines |
+
+Explain any value outside these ranges in the notes.
 
 ### 2.4 `enabler_link`
 
@@ -128,7 +150,7 @@ Rules:
 | `requires_id` | text | The enabler it needs |
 
 Rules:
-- The `requires_id` enabler's `end_q` must be on or before the dependent enabler's `end_q`. They may overlap in time; the arrow then shows "can't finish before".
+- The `requires_id` enabler's `end_q` should be on or before the dependent enabler's `end_q`. They may overlap in time; the arrow then shows "can't finish before". If the information you have puts a prerequisite later, keep the real dates. The app loads them and shows the conflict in red. Explain it in the notes.
 - No cycles: A needs B and B needs A is invalid, and so is any longer loop.
 - List only direct prerequisites. If A needs B and B needs C, don't also add A needs C.
 
@@ -169,8 +191,8 @@ The other keys are scenario levers, not drivers: `realization`, `adoption_delay`
 Infrastructure and data foundations (cloud, connectivity, data platform, master data, OT cybersecurity, digital academy) are usually shared by many processes.
 
 1. You will be given the **current enabler catalogue**. Before creating an enabler, check whether an existing one already covers it. If it does, **reuse its ID** in your links and dependencies, and don't output the enabler row again.
-2. If you need a new cross-process foundation, give it an `E-X-<nn>` ID, put it under "Proposed shared enablers" in the notes, and output its row. A reviewer will merge proposals from different agents.
-3. Never edit an existing enabler's cost or dates. If you think they are wrong, say so in the notes.
+2. A new foundation that other processes will also need gets an `E-X-<nn>` ID. Output its row once, from the first process that needs it, and reuse it afterwards.
+3. If an existing enabler needs a different cost, date or compressibility because of what you learned, output the full row again with the new values (same ID) and say what changed in the notes under **Changed rows**.
 
 ---
 
@@ -205,7 +227,7 @@ id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver,visi
 
 ## enabler.csv
 ```csv
-id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,visibility
+id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,compressibility,visibility
 ...
 ```
 
@@ -233,7 +255,9 @@ id,milestone_date,name,enabler_id,visibility
 - **Cost estimates**: the basis for each enabler's capex, opex and FTE figures.
 - **Assumptions and sources**: what you were told, what you assumed, and how confident you are (high / medium / low).
 - **Reused enablers**: the IDs from the catalogue you linked to.
-- **Proposed shared enablers**: any `E-X-nn` rows and why they are needed.
+- **New shared enablers**: any `E-X-nn` rows and which other processes will likely use them.
+- **Changed rows**: existing IDs you output again, with what changed and why.
+- **Date conflicts**: any prerequisite that goes live after the enabler that needs it, and why the dates are still correct.
 - **Open questions**: for the process owner.
 ````
 
@@ -244,8 +268,9 @@ id,milestone_date,name,enabler_id,visibility
 - [ ] Every column is present, in order, with no extra columns. Numbers have no units, `$` signs or thousands separators.
 - [ ] Every `process_id`, `enabler_id`, `kpi_id` and `requires_id` points to a row in your output or in the catalogue you were given.
 - [ ] Every KPI has at least one link. Every new enabler has at least one link or is required by an enabler that has one.
-- [ ] Dates use `YYYYQn` (enablers) or `YYYY-MM` (milestones), within 2026–2029. `end_q` is not before `start_q`.
-- [ ] Prerequisites end on or before their dependents, and there are no cycles.
+- [ ] Dates use `YYYYQn` (enablers) or `YYYY-MM` (milestones), within 2026–2029.
+- [ ] There are no dependency cycles. Date conflicts (a prerequisite ending later, or an end before the start) are allowed, but each one is explained under **Date conflicts**.
+- [ ] Every enabler has a `compressibility`, and values outside the typical ranges are explained.
 - [ ] `value_driver` is `oil_price`, `fte_cost` or `none`.
 - [ ] Sensitive rows are `private`.
 - [ ] Each digital enabler has a people or adoption enabler next to it.
@@ -262,9 +287,9 @@ K-P2-02,P2,Maintenance cost per boe,$/boe,3.9,3.1,2029,11.2,none,private
 ```
 
 ```csv
-id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,visibility
-E-P2-01,digital,AI / ML,Predictive maintenance platform,2027Q1,2028Q2,6,1,3,5,public
-E-P2-02,people,Training & skills,Reliability engineers upskilling,2027Q2,2028Q2,0.3,0.05,1,1,public
+id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,compressibility,visibility
+E-P2-01,digital,AI / ML,Predictive maintenance platform,2027Q1,2028Q2,6,1,3,5,0.3,public
+E-P2-02,people,Training & skills,Reliability engineers upskilling,2027Q2,2028Q2,0.3,0.05,1,1,0.2,public
 ```
 
 ```csv

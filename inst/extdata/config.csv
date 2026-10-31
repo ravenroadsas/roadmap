@@ -8,3 +8,5 @@ fte_cost,Loaded FTE cost,$k/yr,140,80,220,5,110,170,FALSE,TRUE,Internal manpower
 partner_premium,Partner premium,%,0.35,0,1,0.05,0.15,0.6,TRUE,TRUE,Contractor / ally cost above internal FTE
 discount_rate,Discount rate,%,0.1,0.04,0.18,0.01,0.06,0.14,TRUE,TRUE,WACC used for NPV
 horizon_end,Value horizon end,year,2033,2029,2035,1,2031,2035,FALSE,FALSE,Last year counted in cost and value
+acceleration,Acceleration,%,0,0,1,0.05,0,1,TRUE,TRUE,Share of each enabler's compressibility used: 0 = plan dates; 100% = maximum crash
+crash_exponent,Crash cost exponent,x,1.5,1,3,0.1,1,2.5,FALSE,FALSE,1 = linear (same effort in less time); higher = more coordination overhead when compressing

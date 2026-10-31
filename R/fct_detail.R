@@ -70,6 +70,7 @@ detail_portfolio <- function(data, model, kpi_ids) {
   tagList(
     tags$div(tags$div(class = "eyebrow", sprintf("Value to %s", model$cfg$horizon_end)),
              tags$h3("Select a KPI to trace what makes it possible")),
+    issues_ui(model$graph$issues),
     tags$div(class = "callout",
       "Click a ", tags$b("KPI"), " to highlight its direct enablers and the foundations under them. ",
       "Click an ", tags$b("enabler"), " to see what it unlocks. Figures follow the Sensitivity tab."),
@@ -110,10 +111,11 @@ detail_kpi <- function(data, model, id, kpi_ids) {
                       data$process$name[data$process$id == k$process_id], " ", vtag(k$visibility)),
              tags$h3(k$name)),
     kv(c("Baseline", paste("Target", k$target_year), "Ready"),
-       list(fmt_num(k$baseline, k$unit), fmt_num(k$target, k$unit), time_to_q(g$ready[[id]] - 0.25))),
+       list(fmt_num(k$baseline, k$unit), fmt_num(k$target, k$unit), time_to_q(ceiling(model$ready[[id]] * 4 - 1e-9) / 4 - 0.25))),
     kv(c("Run-rate", paste("Value to", model$cfg$horizon_end), "NPV"),
        list(cls(paste0(fmt_musd(p$run_rate), "/yr"), "pos"), fmt_musd(p$total_value),
             cls(fmt_musd(p$npv), sign_cls(p$npv)))),
+    issues_ui(model$graph$issues[model$graph$issues$enabler_id %in% en, ]),
     tags$div(class = "callout",
       tags$b(length(ch$direct), " direct enablers"), " rely on ", tags$b(length(ch$foundation), " foundations"),
       sprintf(". Allocated cost %s (ROI %s). Building the whole chain for this KPI alone would cost %s. Value driver: %s.",
@@ -141,6 +143,7 @@ detail_enabler <- function(data, model, id, kpi_ids) {
   cfg <- model$cfg
   s <- selection_sets(data, g, list(type = "enabler", id = id), kpi_ids)
   dv <- enabler_direct_value(model, kpi_ids)[[id]]
+  sch <- model$schedule[model$schedule$id == id, ]
   people <- (e$fte_internal * cfg$fte_cost + e$fte_partner * cfg$fte_cost * (1 + cfg$partner_premium)) / 1000
   ks <- kpi_ids[g$alloc[id, kpi_ids] > 0]
   ks <- ks[order(-g$alloc[id, ks])]
@@ -157,6 +160,10 @@ detail_enabler <- function(data, model, id, kpi_ids) {
     kv(c("Manpower", "People cost", paste("Cost to", cfg$horizon_end)),
        list(sprintf("%s int \u00b7 %s ext", e$fte_internal, e$fte_partner), paste0(fmt_musd(people), "/yr"),
             cls(fmt_musd(sum(model$cost[id, ])), "neg"))),
+    enabler_issue_ui(g$issues, id),
+    kv(c("Compressible", "Scenario end", "Crash cost"),
+       list(fmt_pct(sch$compressibility), time_to_q(ceiling(sch$end * 4 - 1e-9) / 4 - 0.25),
+            if (sch$compression > 0) cls(paste0("+", fmt_pct(sch$cost_factor - 1)), "neg") else "\u2013")),
     tags$div(class = "callout",
       if (dv > 0) tagList("Direct value attributed: ", tags$b(fmt_musd(dv)), sprintf(" to %s. ", cfg$horizon_end))
       else tagList(tags$b("Foundation enabler"), ": no direct KPI, its cost is shared by everything built on it. "),
@@ -193,4 +200,20 @@ detail_process <- function(data, model, id, kpi_ids) {
     tags$div(class = "callout", sprintf("%d direct enablers and %d foundations sit behind this process.",
                                         length(s$direct), length(s$en) - length(s$direct)))
   )
+}
+
+#' Red callout listing all date issues (portfolio view)
+issues_ui <- function(issues) {
+  if (!nrow(issues)) return(NULL)
+  tags$div(class = "callout issue",
+    tags$b(sprintf("%d date issue%s in the plan", nrow(issues), if (nrow(issues) > 1) "s" else "")),
+    tags$ul(lapply(seq_len(nrow(issues)), function(i)
+      tags$li(sel_link("enabler", issues$enabler_id[i], issues$message[i])))))
+}
+
+#' Red callout for the issues of one enabler
+enabler_issue_ui <- function(issues, id) {
+  x <- issues[issues$enabler_id == id | (!is.na(issues$related_id) & issues$related_id == id), ]
+  if (!nrow(x)) return(NULL)
+  tags$div(class = "callout issue", tags$b("Date issue: "), paste(x$message, collapse = "; "))
 }

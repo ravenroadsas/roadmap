@@ -48,6 +48,7 @@ sql_statements <- function(path) {
 #' @param seed_dir folder with one `<table>.csv` per table.
 db_init <- function(con, seed_dir = app_sys("extdata")) {
   for (s in sql_statements(app_sys("sql", "schema.sql"))) DBI::dbExecute(con, s)
+  db_migrate(con)
   for (tbl in ROADMAP_TABLES) {
     n <- DBI::dbGetQuery(con, paste0("SELECT COUNT(*) AS n FROM ", tbl))$n
     f <- file.path(seed_dir, paste0(tbl, ".csv"))
@@ -56,6 +57,14 @@ db_init <- function(con, seed_dir = app_sys("extdata")) {
                             check.names = FALSE)
       DBI::dbAppendTable(con, tbl, df)
     }
+  }
+  invisible(con)
+}
+
+#' Add columns introduced after a database file was created
+db_migrate <- function(con) {
+  if (!"compressibility" %in% DBI::dbListFields(con, "enabler")) {
+    DBI::dbExecute(con, "ALTER TABLE enabler ADD COLUMN compressibility DOUBLE DEFAULT 0")
   }
   invisible(con)
 }

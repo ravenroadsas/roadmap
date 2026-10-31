@@ -33,7 +33,9 @@ The three resource types map to columns: money (`capex`, `opex`), manpower and e
 ## Calculation logic
 
 - **Enabler cost / year** = capex × (1 + overrun), spread over the enabler's duration + FTE cost during the build (partner FTE × (1 + partner premium)) + opex from go-live to the horizon.
-- **KPI ready date** = latest end date across its direct enablers and all their prerequisites.
+- **Acceleration**: each enabler has a `compressibility` (max share of its duration that more resources can cut). The scenario lever `acceleration` (0–100%) uses that share of it: duration × (1 − acceleration × compressibility). Doing the same work faster needs (1 − c)^−k times the people (k = `crash_exponent`, 1 = linear, base 1.5), so build effort and capex rise by (1 − c)^(1 − k). Start dates stay fixed.
+- **KPI ready date** = latest (scenario) end date across its direct enablers and all their prerequisites.
+- **Date issues** (an end before the start, or a prerequisite going live after the enabler that needs it) don't block loading. They're shown in red on the timeline, value chain and detail panel. Missing references and dependency cycles still stop the app at startup.
 - **KPI value / year** = `value_musd` × realisation × driver factor (oil price / base or FTE cost / base) × adoption ramp (starts after the adoption lag, linear over the ramp years).
 - **Cost allocation**: each direct enabler is split across KPIs by link weight; foundation enablers pass their cost to the KPIs of their dependents, so shared infrastructure is spread rather than double-counted.
 - **Portfolio**: NPV at the discount rate, ROI = (value − cost) / cost, payback = first year cumulative net ≥ 0.

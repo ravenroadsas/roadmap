@@ -43,12 +43,15 @@ viz_payload <- function(data, model, audience, filters, ns_prefix = "") {
     enablers = data.frame(
       id = e$id, grp = e$enabler_group, sub = e$subcategory, name = e$name,
       start = e$start_q, end = e$end_q,
-      t0 = q_to_time(e$start_q), t1 = q_to_time(e$end_q, TRUE),
-      capex = round(e$capex_musd * (1 + model$cfg$capex_overrun), 2),
+      t0 = q_to_time(e$start_q), t1 = model$schedule$end, t1_plan = q_to_time(e$end_q, TRUE),
+      compression = round(model$schedule$compression, 3),
+      issue = vapply(e$id, function(i) paste(g$issues$message[g$issues$enabler_id == i], collapse = "; "), ""),
+      capex = round(e$capex_musd * (1 + model$cfg$capex_overrun) * model$schedule$cost_factor, 2),
       opex = e$opex_musd_yr, fte_int = e$fte_internal, fte_ext = e$fte_partner,
       show = e_show, stringsAsFactors = FALSE
     ),
     prereq = g$prereq,
+    issues = g$issues,
     processes = data.frame(id = data$process$id, name = data$process$name,
                            show = data$process$id %in% filters$process &
                              data$process$id %in% k$process_id[k_show]),

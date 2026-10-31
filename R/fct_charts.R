@@ -29,6 +29,14 @@ kpi_value_data <- function(data, model, base_model, kpi_ids) {
   out[order(out$scenario), ]
 }
 
+ready_data <- function(data, model, base_model, kpi_ids) {
+  q <- function(t) ceiling(t * 4 - 1e-9) / 4      # end of the quarter
+  out <- data.frame(kpi = data$kpi$name[match(kpi_ids, data$kpi$id)],
+                    base = q(base_model$ready[kpi_ids]), scenario = q(model$ready[kpi_ids]))
+  out$months_earlier <- round((out$base - out$scenario) * 12)
+  out[order(-out$scenario), ]
+}
+
 chart_theme <- function(e) {
   e |>
     echarts4r::e_tooltip(trigger = "axis") |>
@@ -71,16 +79,31 @@ chart_kpis <- function(df) {
     chart_theme()
 }
 
+chart_ready <- function(df) {
+  lo <- floor(min(df$scenario, df$base))
+  df |>
+    echarts4r::e_charts_("kpi") |>
+    echarts4r::e_scatter_("base", name = "Base", symbol = "rect", symbolSize = c(3, 14),
+                          itemStyle = list(color = COL$muted)) |>
+    echarts4r::e_scatter_("scenario", name = "Scenario", symbolSize = 9, itemStyle = list(color = COL$accent)) |>
+    echarts4r::e_flip_coords() |>
+    echarts4r::e_x_axis(min = lo, axisLabel = list(fontSize = 10)) |>
+    echarts4r::e_grid(left = 190, right = 20, top = 30, bottom = 24) |>
+    echarts4r::e_y_axis(axisLabel = list(fontSize = 10)) |>
+    chart_theme()
+}
+
 #' Headline figures shared by the Roadmap and Sensitivity tabs
 summary_strip <- function(data, model, kpi_ids) {
   p <- portfolio(model, kpi_ids)
   share <- rowSums(model$graph$alloc[, kpi_ids, drop = FALSE])
-  capex <- sum(data$enabler$capex_musd[match(names(share), data$enabler$id)] * share) *
+  i <- match(names(share), data$enabler$id)
+  capex <- sum(data$enabler$capex_musd[i] * model$schedule$cost_factor[i] * share) *
     (1 + model$cfg$capex_overrun)
   h <- model$cfg$horizon_end
   stat <- function(l, v, s) tags$div(class = "stat", tags$div(class = "l", l), tags$div(class = "v", v), tags$div(class = "s", s))
   tags$div(class = "strip",
-    stat(paste("Investment to", h), fmt_musd(p$total_cost), paste("capex", fmt_musd(capex), "incl. overrun")),
+    stat(paste("Investment to", h), fmt_musd(p$total_cost), paste("capex", fmt_musd(capex), "incl. overrun & crash")),
     stat(paste("Value to", h), fmt_musd(p$total_value), "cumulative, realised"),
     stat("Run-rate value", paste0(fmt_musd(p$run_rate), "/yr"), "at full adoption"),
     stat(paste("NPV @", fmt_pct(model$cfg$discount_rate)), tags$span(class = sign_cls(p$npv), fmt_musd(p$npv)),

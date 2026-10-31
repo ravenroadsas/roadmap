@@ -70,3 +70,50 @@ test_that("tornado moves NPV in the expected direction on sample data", {
   o <- t[t$key == "capex_overrun", ]
   expect_lt(o$npv_high, o$npv_low)
 })
+
+test_that("no acceleration keeps the plan schedule and costs", {
+  d <- tiny_data()
+  sch <- schedule(d$enabler, tiny_cfg())
+  expect_equal(sch$end, q_to_time(d$enabler$end_q, TRUE))
+  expect_equal(sch$cost_factor, c(1, 1, 1))
+})
+
+test_that("acceleration shortens durations up to compressibility, with non-linear cost", {
+  d <- tiny_data()
+  full <- schedule(d$enabler, tiny_cfg(acceleration = 1, crash_exponent = 2))
+  # E2: 1 year, compressibility 0.5 -> 0.5 year; E1 not compressible
+  expect_equal(full$duration, c(1, 0.5, 0.5 * 0.8))
+  expect_equal(full$people_factor[2], 4)        # (1 - 0.5)^-2
+  expect_equal(full$cost_factor[2], 2)          # (1 - 0.5)^(1 - 2)
+  lin <- schedule(d$enabler, tiny_cfg(acceleration = 1, crash_exponent = 1))
+  expect_equal(lin$cost_factor, c(1, 1, 1))     # linear: same effort, less time
+  half <- schedule(d$enabler, tiny_cfg(acceleration = 0.5, crash_exponent = 2))
+  # cost premium grows faster than compression
+  expect_gt((full$cost_factor[2] - 1) / (half$cost_factor[2] - 1),
+            full$compression[2] / half$compression[2])
+  expect_equal(schedule(transform(d$enabler, compressibility = 5), tiny_cfg(acceleration = 1))$compression[1], 0.9)
+})
+
+test_that("acceleration brings KPIs forward and raises build cost", {
+  d <- tiny_data()
+  g <- build_graph(d)
+  base <- tiny_cfg()
+  fast <- tiny_cfg(acceleration = 1)
+  m0 <- run_model(d, g, base, base)
+  m1 <- run_model(d, g, fast, base)
+  expect_lt(m1$ready[["K1"]], m0$ready[["K1"]])
+  expect_equal(m1$ready[["K1"]], 2027.0)        # E2 now ends 2027.0; E1 still 2027.0
+  expect_gt(sum(m1$cost["E2", ]), sum(m0$cost["E2", ]))
+  expect_gt(sum(m1$value["K1", ]), sum(m0$value["K1", ]))
+})
+
+test_that("database without compressibility column is migrated", {
+  skip_if_not(requireNamespace("RSQLite", quietly = TRUE) || requireNamespace("duckdb", quietly = TRUE))
+  con <- db_connect(":memory:")
+  on.exit(db_disconnect(con))
+  DBI::dbExecute(con, "CREATE TABLE enabler (id VARCHAR PRIMARY KEY, enabler_group VARCHAR, subcategory VARCHAR,
+    name VARCHAR, start_q VARCHAR, end_q VARCHAR, capex_musd DOUBLE, opex_musd_yr DOUBLE,
+    fte_internal DOUBLE, fte_partner DOUBLE, visibility VARCHAR)")
+  db_init(con)
+  expect_true("compressibility" %in% DBI::dbListFields(con, "enabler"))
+})

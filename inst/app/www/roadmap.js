@@ -40,9 +40,10 @@ function renderKpis(H){
 
 function legend(extra){q('.rm-legend').innerHTML=S.p.groups.map(g=>`<span><i class="dot ${g.id}"></i>${esc(g.name)}</span>`).join('')+extra}
 
+function issueSets(){const ids=new Set(),pairs=new Set();arr(S.p.issues).forEach(i=>{ids.add(i.enabler_id);if(i.related_id)pairs.add(i.related_id+'>'+i.enabler_id)});return{ids,pairs}}
 function renderTimeline(H){
   const p=S.p,box=q('.rm-viz'),W=Math.max(760,box.parentElement.clientWidth-2),L=220,R=56;
-  const T0=Math.floor(Math.min(...p.enablers.map(e=>e.t0))),T1=Math.ceil(Math.max(...p.enablers.map(e=>e.t1)));
+  const T0=Math.floor(Math.min(...p.enablers.map(e=>Math.min(e.t0,e.t1_plan)))),T1=Math.ceil(Math.max(...p.enablers.map(e=>Math.max(e.t1,e.t1_plan))));const IS=issueSets();
   const x=t=>L+(t-T0)/(T1-T0)*(W-L-R);const ens=p.enablers.filter(e=>e.show);
   let y=46;const pos={},body=[];const msY=y+4;
   p.milestones.forEach(mm=>{if(!EN[mm.enabler])return;const cls=H?(H.en.has(mm.enabler)?'on':'off'):'';const mx=x(mm.t);
@@ -54,8 +55,12 @@ function renderTimeline(H){
     rows.forEach(e=>{const cy=y+9,x1=x(e.t0),x2=x(e.t1);pos[e.id]={cy,x1,x2};
       let cls='';if(H)cls=H.direct.has(e.id)?'on':H.en.has(e.id)?'found':'off';
       if(S.sel&&S.sel.type==='enabler'&&S.sel.id===e.id)cls+=' sel';
-      body.push(`<g class="bar ${cls}" data-sel="enabler:${e.id}" data-tip="<b>${esc(e.name)}</b><br>${esc(g.name)} › ${esc(e.sub)}<br>${e.start} – ${e.end}<br>Capex ${fmtM(e.capex)} · Opex ${fmtM(e.opex)}/yr<br>FTE ${e.fte_int} internal · ${e.fte_ext} partner">
-        <text class="t-lbl" x="14" y="${cy+4}">${esc(e.name.length>34?e.name.slice(0,33)+'…':e.name)}</text>
+      const iss=IS.ids.has(e.id)||e.issue;if(iss)cls+=' issue';
+      const comp=e.compression>0?`<br>Compressed ${Math.round(e.compression*100)}% (plan ends ${e.end})`:'';
+      const ghost=e.compression>0?`<rect class="plan-ghost" x="${x1}" y="${cy-6}" width="${Math.max(3,x(e.t1_plan)-x1)}" height="12" rx="2"/>`:'';
+      const nm=(iss?'⚠ ':'')+(e.name.length>32?e.name.slice(0,31)+'…':e.name);
+      body.push(`<g class="bar ${cls}" data-sel="enabler:${e.id}" data-tip="<b>${esc(e.name)}</b><br>${esc(g.name)} › ${esc(e.sub)}<br>${e.start} – ${e.end}${comp}<br>Capex ${fmtM(e.capex)} · Opex ${fmtM(e.opex)}/yr<br>FTE ${e.fte_int} internal · ${e.fte_ext} partner${e.issue?'<br><b>⚠ '+esc(e.issue)+'</b>':''}">
+        <text class="t-lbl" x="14" y="${cy+4}">${esc(nm)}</text>${ghost}
         <rect class="b" x="${x1}" y="${cy-6}" width="${Math.max(3,x2-x1)}" height="12" style="fill:${GCOL(e.grp)};stroke:${GCOL(e.grp)}"/>
         <text class="t-cost" x="${x2+5}" y="${cy+3.5}">${fmtM(e.capex)}</text></g>`);y+=22})});
   const Ht=y+12,grid=[];
@@ -65,11 +70,12 @@ function renderTimeline(H){
     if(t<T1-1e-9)grid.push(`<text class="t-q" x="${x(t+.125)}" y="38" text-anchor="middle">Q${Math.round((t-Math.floor(t+1e-9))*4)+1}</text>`)}
   if(p.today>T0&&p.today<T1)grid.push(`<line class="today" x1="${x(p.today)}" x2="${x(p.today)}" y1="20" y2="${Ht}"/><text class="t-today" x="${x(p.today)+3}" y="27">today</text>`);
   const edges=[];ens.forEach(d=>PRE[d.id].forEach(pr=>{if(!pos[pr]||!pos[d.id])return;
-    const on=H&&H.en.has(pr)&&H.en.has(d.id);if(!on&&!S.alldeps)return;const a=pos[pr],b=pos[d.id],sg=b.cy>a.cy?1:-1;
-    if(a.x2<=b.x1+1){const mx=(a.x2+b.x1)/2;edges.push(`<path class="edge ${on?'':'faint'}" d="M${a.x2},${a.cy}C${Math.max(mx,a.x2+18)},${a.cy} ${Math.min(mx,b.x1-18)},${b.cy} ${b.x1-1},${b.cy}" marker-end="url(#rm-ah)"/>`)}
-    else{const xt=clamp(a.x2,b.x1,b.x2);edges.push(`<circle cx="${a.x2}" cy="${a.cy}" r="2" class="arrowhead" ${on?'':'opacity=".2"'}/><path class="edge ${on?'':'faint'}" d="M${a.x2},${a.cy+sg*6}L${xt},${b.cy-sg*8}" marker-end="url(#rm-ah)"/>`)}}));
-  box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Enabler timeline"><defs><marker id="rm-ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead" d="M0,0L6,3L0,6Z"/></marker></defs>${grid.join('')}${body.join('')}${edges.join('')}</svg>`;
-  legend(`<span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>direct enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>◇ milestone</span><span>label = capex incl. overrun</span>`)}
+    const bad=IS.pairs.has(pr+'>'+d.id);const on=H&&H.en.has(pr)&&H.en.has(d.id);if(!on&&!S.alldeps&&!bad)return;const a=pos[pr],b=pos[d.id],sg=b.cy>a.cy?1:-1;
+    const ec=bad?'issue':on?'':'faint',mk=bad?'url(#rm-ahr)':'url(#rm-ah)';
+    if(a.x2<=b.x1+1){const mx=(a.x2+b.x1)/2;edges.push(`<path class="edge ${ec}" d="M${a.x2},${a.cy}C${Math.max(mx,a.x2+18)},${a.cy} ${Math.min(mx,b.x1-18)},${b.cy} ${b.x1-1},${b.cy}" marker-end="${mk}"/>`)}
+    else{const xt=clamp(a.x2,b.x1,b.x2);edges.push(`<circle cx="${a.x2}" cy="${a.cy}" r="2" class="arrowhead ${bad?'issue':''}" ${on||bad?'':'opacity=".2"'}/><path class="edge ${ec}" d="M${a.x2},${a.cy+sg*6}L${bad?a.x2:xt},${b.cy-sg*8}" marker-end="${mk}"/>`)}}));
+  box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Enabler timeline"><defs><marker id="rm-ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead" d="M0,0L6,3L0,6Z"/></marker><marker id="rm-ahr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead issue" d="M0,0L6,3L0,6Z"/></marker></defs>${grid.join('')}${body.join('')}${edges.join('')}</svg>`;
+  legend(`<span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>direct enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>◇ milestone</span><span>label = capex incl. overrun & crash cost</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" class="plan-ghost"/></svg>plan duration (when compressed)</span><span style="color:var(--neg)">⚠ red = date issue</span>`)}
 
 function renderChain(H){
   const p=S.p,box=q('.rm-viz'),W=Math.max(700,box.parentElement.clientWidth-4);const ens=p.enablers.filter(e=>e.show);const ks=p.kpis.filter(k=>k.show);
@@ -83,6 +89,7 @@ function renderChain(H){
     c.items.forEach((it,i)=>{const y0=off+i*(NH+GAP);P[it.type+it.id]={x0,x1:x0+nw,cy:y0+NH/2};
       let cls='';if(H){const on=it.type==='enabler'?H.en.has(it.id):it.type==='kpi'?H.kpi.has(it.id):H.proc.has(it.id);cls=on?'on':'off'}
       if(S.sel&&S.sel.type===it.type&&S.sel.id===it.id)cls+=' sel';
+      if(it.type==='enabler'&&EN[it.id]&&EN[it.id].issue)cls+=' issue';
       const maxc=Math.floor((nw-(it.type==='kpi'?44:14))/5.4),nm=it.name.length>maxc?it.name.slice(0,maxc-1)+'…':it.name;
       const right=it.type==='kpi'?`<text class="t-nodev" x="${x0+nw-5}" y="${y0+NH/2+3.5}" text-anchor="end">${fmtM(it.run,0)}</text>`:'';
       const bar=it.g?`<rect x="${x0}" y="${y0}" width="4" height="${NH}" style="fill:${GCOL(it.g)};stroke:none"/>`:'';
@@ -100,6 +107,7 @@ function renderChain(H){
 
 function render(){
   if(!S.p||!root())return;const H=highlight();renderKpis(H);
+  const ni=arr(S.p.issues).length,bi=q('.rm-issues');if(bi)bi.textContent=ni?`⚠ ${ni} date issue${ni>1?'s':''}`:'';
   root().querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===S.view));
   (S.view==='timeline'?renderTimeline:renderChain)(H)}
 

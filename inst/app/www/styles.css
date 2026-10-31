@@ -218,3 +218,17 @@ header .tabbar,.tabbable>.nav-tabs{position:sticky;top:0}
 .aud .shiny-input-container{margin:0}
 .sl .irs--shiny{margin-top:-4px}
 [hidden]{display:none!important}
+
+/* date issues and compression */
+.callout.issue{background:#fbeceb;color:var(--neg);border-left:3px solid var(--neg)}
+.callout.issue ul{margin:4px 0 0;padding-left:16px}
+.callout.issue .lk{color:var(--neg)}
+.bar.issue rect.b{stroke:var(--neg)!important;stroke-width:2!important;stroke-dasharray:none!important}
+.bar.issue .t-lbl{fill:var(--neg);font-weight:500}
+.edge.issue{stroke:var(--neg);stroke-opacity:1;stroke-width:1.6}
+.arrowhead.issue{fill:var(--neg)}
+.plan-ghost{fill:none;stroke:var(--faint);stroke-dasharray:2 2}
+.t-issue{font:600 11px var(--sans);fill:var(--neg)}
+.rm-issues{color:var(--neg);font-size:11px;font-weight:500}
+.node.issue rect{stroke:var(--neg);stroke-width:1.6}
+.node.issue .t-node{fill:var(--neg)}

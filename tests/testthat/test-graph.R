@@ -42,3 +42,19 @@ test_that("sample data is valid and every enabler reaches a KPI", {
   expect_true(all(abs(rowSums(g$alloc) - 1) < 1e-9))
   expect_true(all(g$ready >= 2026 & g$ready <= 2030))
 })
+
+test_that("date inconsistencies load and are reported, not blocking", {
+  d <- tiny_data()
+  expect_equal(nrow(date_issues(d)), 0)
+  d$enabler$end_q[1] <- "2027Q4"            # E1 (needed by E2) now goes live after E2
+  d$enabler$end_q[3] <- "2025Q4"            # E3 ends before it starts
+  expect_length(graph_validate(d), 0)
+  g <- build_graph(d)
+  expect_setequal(g$issues$type, c("end_before_start", "prereq_ends_later"))
+  late <- g$issues[g$issues$type == "prereq_ends_later", ]
+  expect_equal(c(late$enabler_id, late$related_id), c("E2", "E1"))
+  # a backwards enabler still produces a finite, positive cost
+  m <- run_model(d, g, tiny_cfg())
+  expect_true(all(is.finite(m$cost)))
+  expect_equal(sum(m$cost["E3", ]), 1)
+})

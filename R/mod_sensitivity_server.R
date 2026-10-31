@@ -36,6 +36,9 @@ mod_sensitivity_server <- function(id, data, graph, cfg_table, audience) {
     output$tornado <- echarts4r::renderEcharts4r({
       chart_tornado(tornado_data(data, graph, scenario(), base, cfg_table, kpi_ids()))
     })
+    output$ready <- echarts4r::renderEcharts4r({
+      chart_ready(ready_data(data, model(), base_model(), kpi_ids()))
+    })
     output$kpis <- echarts4r::renderEcharts4r({
       chart_kpis(kpi_value_data(data, model(), base_model(), kpi_ids()))
     })
