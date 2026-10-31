@@ -1,0 +1,677 @@
+<title>Transformation Roadmap 2026–29</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky header + tabs; Roadmap = filters | timeline/value-chain canvas | sticky detail panel. Compact, industrial, editorial headings. */
+:root{
+  --bg:#f6f7f5; --panel:#ffffff; --ink:#1b2025; --muted:#68727c; --faint:#9aa3ab; --line:#e1e4e2; --soft:#eef0ee;
+  --people:#c97a1e; --digital:#2f6db0; --data:#14857a; --infra:#6b5fa8;
+  --pos:#2f8a55; --neg:#b4423a; --sel:#1b2025; --hl:#fff4cc;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121518; --panel:#191d21; --ink:#e4e8ea; --muted:#99a3ab; --faint:#69737b; --line:#2a3036; --soft:#20252a;
+  --people:#e09a45; --digital:#5f97d8; --data:#3bb0a3; --infra:#9a8fd6;
+  --pos:#58b07c; --neg:#de6f66; --sel:#e4e8ea; --hl:#3a3420; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121518; --panel:#191d21; --ink:#e4e8ea; --muted:#99a3ab; --faint:#69737b; --line:#2a3036; --soft:#20252a;
+  --people:#e09a45; --digital:#5f97d8; --data:#3bb0a3; --infra:#9a8fd6;
+  --pos:#58b07c; --neg:#de6f66; --sel:#e4e8ea; --hl:#3a3420; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:12px/1.45 var(--sans)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+button,input{font:inherit;color:inherit}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1500px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.hbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-block:10px}
+.brand h1{font:600 20px/1.1 var(--serif);margin:0;letter-spacing:-.01em}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:11px}
+.pill{display:inline-block;font:500 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border:1px solid var(--line);border-radius:3px;color:var(--muted)}
+.pill.warn{border-color:var(--people);color:var(--people)}
+nav.tabs{display:flex;gap:2px;margin-left:auto}
+.tab{background:none;border:0;padding:7px 12px;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-weight:500}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{border:0;background:none;padding:5px 10px;cursor:pointer;color:var(--muted);font-size:11px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+:focus-visible{outline:2px solid var(--digital);outline-offset:1px}
+
+.strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-block:14px}
+.stat{background:var(--panel);padding:9px 12px}
+.stat .l{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font:500 18px/1.25 var(--mono);font-variant-numeric:tabular-nums}
+.stat .s{font-size:10.5px;color:var(--faint)}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+
+.grid3{display:grid;grid-template-columns:250px minmax(0,1fr) 330px;gap:14px;align-items:start}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.box>.bh{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.bh h2{font:600 11px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;margin:0;color:var(--muted)}
+.bh .sp{margin-left:auto}
+.side{display:flex;flex-direction:column;gap:12px}
+.fsec{padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.flabel{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:3px;padding:3px 7px;cursor:pointer;font-size:11px;display:inline-flex;align-items:center;gap:5px}
+.chip[aria-pressed="false"]{color:var(--faint)}
+.chip[aria-pressed="false"] .dot{opacity:.25}
+.en{display:flex;gap:6px;align-items:baseline}.en .dot{transform:translateY(1px)}
+.dot{width:8px;height:8px;border-radius:2px;display:inline-block;flex:none}
+.search{width:100%;border:1px solid var(--line);border-radius:3px;background:var(--bg);padding:5px 7px}
+
+.klist{display:flex;flex-direction:column}
+.kcard{display:block;padding:7px 10px;border:0;border-top:1px solid var(--line);background:none;text-align:left;cursor:pointer;width:100%;position:relative}
+.kcard:first-child{border-top:0}
+.kcard:hover{background:var(--soft)}
+.kcard .ktop{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.kcard .kn{font-weight:500;min-width:0}
+.kcard .kv{font:500 11px var(--mono);text-align:right}
+.kcard .km{margin-top:2px;color:var(--muted);font-size:10.5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.kcard.sel{background:var(--hl);box-shadow:inset 3px 0 0 var(--sel)}
+.kcard.hl{background:var(--hl)}
+.kcard.dim{opacity:.35}
+.vtag{font:500 9px/1 var(--mono);letter-spacing:.05em;padding:2px 4px;border-radius:2px;border:1px solid var(--line);color:var(--muted)}
+.vtag.private{border-color:var(--neg);color:var(--neg)}
+
+.canvas{min-width:0}
+.vizscroll{overflow-x:auto}
+#viz svg{display:block}
+.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:10.5px;padding:8px 10px;border-top:1px solid var(--line)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.hint{color:var(--muted);font-size:11px}
+.toggle{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:11px;cursor:pointer}
+
+/* svg */
+.t-axis{font:500 11px var(--mono);fill:var(--muted)}
+.t-q{font:400 9px var(--mono);fill:var(--faint)}
+.t-grp{font:600 10px var(--sans);letter-spacing:.07em;text-transform:uppercase;fill:var(--muted)}
+.t-lbl{font:400 11px var(--sans);fill:var(--ink);cursor:pointer}
+.t-cost{font:400 9.5px var(--mono);fill:var(--muted)}
+.t-ms{font:500 9.5px var(--sans);fill:var(--ink)}
+.gl{stroke:var(--line);stroke-width:1}
+.gl.y{stroke:var(--faint);stroke-opacity:.5}
+.today{stroke:var(--neg);stroke-dasharray:3 3}
+.t-today{font:500 9px var(--mono);fill:var(--neg)}
+.bar{cursor:pointer;transition:opacity .15s}
+.bar rect.b{rx:2px}
+.bar.off,.ms.off,.lbl.off,.node.off,.lnk.off{opacity:.14}
+.bar.found rect.b{fill-opacity:.35;stroke-width:1.2;stroke-dasharray:3 2}
+.bar.sel rect.b{stroke:var(--sel);stroke-width:2;stroke-dasharray:none}
+.edge{fill:none;stroke:var(--ink);stroke-width:1.2;stroke-opacity:.75}
+.edge.faint{stroke-opacity:.16}
+.arrowhead{fill:var(--ink)}
+.ms{cursor:pointer}
+.ms path{fill:var(--panel);stroke:var(--ink);stroke-width:1.3}
+.ms.on path{fill:var(--ink)}
+.node rect{fill:var(--panel);stroke:var(--line)}
+.node{cursor:pointer}
+.node.on rect{stroke:var(--ink)}
+.node.sel rect{stroke:var(--sel);stroke-width:2}
+.t-node{font:400 10.5px var(--sans);fill:var(--ink)}
+.t-nodev{font:400 9.5px var(--mono);fill:var(--muted)}
+.lnk{fill:none;stroke:var(--faint);stroke-opacity:.45}
+.lnk.on{stroke:var(--ink);stroke-opacity:.8;stroke-width:1.5}
+.lnk.pre{stroke-dasharray:3 2}
+
+/* detail */
+.detail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 70px)}
+.dbody{padding:10px 12px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 110px);overflow:auto}
+.eyebrow{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dbody h3{font:600 19px/1.2 var(--serif);margin:2px 0 0;text-wrap:balance}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.kv div{border-left:2px solid var(--line);padding-left:7px;min-width:0}
+.kv .l{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kv .v{font:500 13px var(--mono);font-variant-numeric:tabular-nums}
+.callout{background:var(--soft);border-radius:3px;padding:8px 10px;font-size:11.5px}
+.callout b{font-weight:600}
+table.t{width:100%;border-collapse:collapse;font-size:11px}
+table.t th{font-weight:500;text-align:left;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding:4px 4px}
+table.t td{border-bottom:1px solid var(--line);padding:4px 4px;vertical-align:top}
+table.t td.r,table.t th.r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.t tr.sub td{color:var(--muted)}
+table.t tfoot td{font-weight:600;border-bottom:0}
+a.lk,button.lk{display:inline;font-size:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:2px}
+a.lk:hover,button.lk:hover{text-decoration-color:var(--ink)}
+.role{font:500 9px/1 var(--mono);padding:2px 4px;border-radius:2px;white-space:nowrap}
+.role.d{background:var(--ink);color:var(--panel)}
+.role.f{border:1px dashed var(--muted);color:var(--muted)}
+.minibar{height:4px;background:var(--soft);border-radius:2px;overflow:hidden;margin-top:3px}
+.minibar i{display:block;height:100%;background:var(--ink)}
+
+/* sensitivity */
+.grid2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;align-items:start;margin-top:14px}
+.sl{padding:8px 12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.sl:first-of-type{border-top:0}
+.sl .row{display:flex;justify-content:space-between;gap:8px}
+.sl .row b{font-weight:500}
+.sl .row .num{font-size:11.5px}
+.sl input[type=range]{width:100%;accent-color:var(--ink)}
+.sl .d{font-size:10.5px;color:var(--muted)}
+.sl .base{font-size:10px;color:var(--faint)}
+.sl.changed .row .num{color:var(--digital)}
+.charts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.charts .wide{grid-column:1/-1}
+.cbody{padding:8px 10px}
+.cbody svg{display:block;width:100%;height:auto}
+.c-ax{font:400 9.5px var(--mono);fill:var(--muted)}
+.c-lbl{font:400 10.5px var(--sans);fill:var(--ink)}
+.c-val{font:500 9.5px var(--mono);fill:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:3px;padding:4px 9px;cursor:pointer;font-size:11px}
+.btn:hover{border-color:var(--ink)}
+
+/* data model */
+.schema{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:14px}
+.schema .box p{margin:0;padding:8px 10px;color:var(--muted);font-size:11px;border-bottom:1px solid var(--line)}
+.schema code{font-family:var(--mono);font-size:10.5px}
+.fk{color:var(--digital);font-family:var(--mono);font-size:10px}
+.intro{max-width:78ch;margin-top:14px;font-size:12.5px;color:var(--muted)}
+.intro h2{font:600 22px/1.2 var(--serif);color:var(--ink);margin:0 0 6px}
+.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;font-size:11px}
+.flow span.n{border:1px solid var(--line);background:var(--panel);padding:4px 8px;border-radius:3px;color:var(--ink)}
+
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--ink);color:var(--panel);font-size:11px;padding:6px 8px;border-radius:3px;max-width:280px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+#tip b{font-weight:600}
+
+@media (max-width:1180px){.grid3{grid-template-columns:240px minmax(0,1fr)}.detail{grid-column:1/-1;position:static}.dbody{max-height:none}.strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:820px){.grid3,.grid2,.charts{grid-template-columns:minmax(0,1fr)}.strip{grid-template-columns:repeat(2,minmax(0,1fr))}nav.tabs{margin-left:0;width:100%;overflow-x:auto}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <div class="wrap hbar">
+    <div class="brand">
+      <h1>Transformation Roadmap 2026–29</h1>
+      <p>Enablers → processes → KPIs → value &nbsp;<span class="pill warn">Mockup · sample data</span></p>
+    </div>
+    <div class="seg" role="group" aria-label="Audience">
+      <button id="aud-public" aria-pressed="false" data-aud="public">Public</button>
+      <button id="aud-mgmt" aria-pressed="true" data-aud="mgmt">Management</button>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="roadmap" aria-selected="true">Roadmap</button>
+      <button class="tab" role="tab" data-tab="sens" aria-selected="false">Sensitivity</button>
+      <button class="tab" role="tab" data-tab="model" aria-selected="false">Data model</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" style="padding-block:0 40px">
+  <!-- ROADMAP TAB -->
+  <section id="tab-roadmap">
+    <div class="strip" id="strip"></div>
+    <div class="grid3">
+      <aside class="side">
+        <div class="box">
+          <div class="bh"><h2>Filters</h2><button class="lk sp" id="clearf" style="font-size:11px">Reset</button></div>
+          <div class="fsec"><span class="flabel">Process</span><div class="chips" id="f-proc"></div></div>
+          <div class="fsec"><span class="flabel">Enabler group</span><div class="chips" id="f-grp"></div></div>
+          <div class="fsec"><input class="search" id="q" type="search" placeholder="Search KPI or enabler…" aria-label="Search"></div>
+        </div>
+        <div class="box">
+          <div class="bh"><h2>KPIs</h2><span class="sp hint" id="kcount"></span></div>
+          <div class="klist" id="klist"></div>
+        </div>
+      </aside>
+
+      <div class="canvas box">
+        <div class="bh">
+          <div class="seg" role="group" aria-label="View">
+            <button data-view="timeline" aria-pressed="true">Timeline</button>
+            <button data-view="chain" aria-pressed="false">Value chain</button>
+          </div>
+          <label class="toggle sp"><input type="checkbox" id="alldeps"> Show all dependencies</label>
+        </div>
+        <div class="vizscroll"><div id="viz"></div></div>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <aside class="detail box">
+        <div class="bh"><h2 id="dtitle">Portfolio</h2><button class="lk sp" id="clearsel" style="font-size:11px" hidden>Clear selection</button></div>
+        <div class="dbody" id="detail"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- SENSITIVITY TAB -->
+  <section id="tab-sens" hidden>
+    <div class="strip" id="sstrip"></div>
+    <div class="grid2">
+      <div class="box">
+        <div class="bh"><h2>Assumptions</h2><button class="btn sp" id="reset">Reset to base</button></div>
+        <div id="sliders"></div>
+      </div>
+      <div class="charts">
+        <div class="box wide"><div class="bh"><h2>Annual cost vs value, cumulative net</h2><span class="sp hint">$M · dashed = base case</span></div><div class="cbody" id="c-flow"></div></div>
+        <div class="box"><div class="bh"><h2>NPV tornado</h2><span class="sp hint">each lever at low / high, others as set</span></div><div class="cbody" id="c-tor"></div></div>
+        <div class="box"><div class="bh"><h2>Value to horizon by KPI</h2><span class="sp hint">$M · tick = base</span></div><div class="cbody" id="c-kpi"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA MODEL TAB -->
+  <section id="tab-model" hidden>
+    <div class="intro">
+      <h2>Lightweight data model</h2>
+      <p>Five tables plus a key/value config. Money flows into enablers; enablers carry KPIs through processes; KPIs carry value. Every reportable row has a <code>visibility</code> flag (public / private) that drives the audience switch. The data layer is still under construction, so the schema keeps only what the calculation needs.</p>
+      <div class="flow"><span class="n">config</span>→<span class="n">enabler</span>⇢<span class="n">enabler_link (weight)</span>→<span class="n">kpi</span>→<span class="n">process</span><span style="margin-left:10px" class="hint">milestone → enabler · enabler.prereq → enabler</span></div>
+    </div>
+    <div class="schema" id="schema"></div>
+  </section>
+</main>
+<div id="tip" hidden></div>
+
+<script>
+/* =========================================================================
+   DATA LAYER (sample) — mirrors the proposed tables
+   ========================================================================= */
+const DATA = {
+processes:[
+ {id:'P1',name:'Production operations',owner:'VP Operations',visibility:'public'},
+ {id:'P2',name:'Asset maintenance',owner:'Head of Maintenance',visibility:'public'},
+ {id:'P3',name:'Drilling & well planning',owner:'Drilling Manager',visibility:'public'},
+ {id:'P4',name:'Supply chain & procurement',owner:'CPO',visibility:'public'},
+ {id:'P5',name:'HSE & compliance',owner:'HSE Director',visibility:'public'},
+ {id:'P6',name:'Finance & reporting',owner:'CFO',visibility:'public'}],
+kpis:[
+ {id:'K1',process:'P1',name:'Barrels per employee',unit:'bbl/FTE·yr',baseline:9800,target:12500,target_year:2029,value_driver:'oil_price',value_musd:35.2,visibility:'public'},
+ {id:'K2',process:'P1',name:'Unplanned production downtime',unit:'%',baseline:4.1,target:2.3,target_year:2029,value_driver:'oil_price',value_musd:25.6,visibility:'public'},
+ {id:'K11',process:'P1',name:'Production target accomplishment',unit:'%',baseline:92,target:98,target_year:2029,value_driver:'oil_price',value_musd:16,visibility:'private'},
+ {id:'K3',process:'P2',name:'Work-order turnaround',unit:'days',baseline:18,target:7,target_year:2028,value_driver:'labor',value_musd:6.4,visibility:'public'},
+ {id:'K4',process:'P2',name:'Maintenance cost per boe',unit:'$/boe',baseline:3.9,target:3.1,target_year:2029,value_driver:'none',value_musd:11.2,visibility:'private'},
+ {id:'K5',process:'P3',name:'Well planning cycle time',unit:'days',baseline:45,target:20,target_year:2028,value_driver:'labor',value_musd:8,visibility:'public'},
+ {id:'K6',process:'P3',name:'Drilling non-productive time',unit:'%',baseline:14,target:9,target_year:2029,value_driver:'none',value_musd:14.4,visibility:'private'},
+ {id:'K7',process:'P4',name:'Purchase-order cycle time',unit:'days',baseline:21,target:6,target_year:2027,value_driver:'labor',value_musd:3.2,visibility:'public'},
+ {id:'K8',process:'P4',name:'Inventory working capital',unit:'$M',baseline:180,target:140,target_year:2028,value_driver:'none',value_musd:4.8,visibility:'private'},
+ {id:'K9',process:'P5',name:'Recordable injury rate (TRIR)',unit:'per 200k h',baseline:0.42,target:0.25,target_year:2029,value_driver:'none',value_musd:2.4,visibility:'public'},
+ {id:'K10',process:'P6',name:'Monthly close',unit:'days',baseline:9,target:4,target_year:2028,value_driver:'labor',value_musd:1.6,visibility:'private'}],
+enablers:[
+ {id:'E01',grp:'people',sub:'Training & skills',name:'Digital academy & upskilling',start:'2026Q1',end:'2027Q4',capex:1.5,opex:0.4,fte_int:3,fte_ext:2,prereq:[]},
+ {id:'E02',grp:'people',sub:'Change management',name:'Change network & adoption office',start:'2026Q2',end:'2029Q4',capex:0.4,opex:0.3,fte_int:5,fte_ext:1,prereq:[]},
+ {id:'E03',grp:'people',sub:'Organisation design',name:'Human–AI–robot operating model',start:'2026Q3',end:'2027Q2',capex:0.8,opex:0.1,fte_int:2,fte_ext:3,prereq:[]},
+ {id:'E06',grp:'digital',sub:'Field apps',name:'Mobile field workforce app',start:'2026Q3',end:'2027Q2',capex:2.2,opex:0.4,fte_int:2,fte_ext:3,prereq:['E12']},
+ {id:'E07',grp:'digital',sub:'Automation',name:'Procurement automation (RPA + agents)',start:'2026Q4',end:'2027Q4',capex:2.8,opex:0.4,fte_int:2,fte_ext:3,prereq:['E09']},
+ {id:'E15',grp:'digital',sub:'Automation',name:'Finance close automation',start:'2027Q1',end:'2027Q4',capex:1.4,opex:0.2,fte_int:1,fte_ext:2,prereq:['E08','E09']},
+ {id:'E04',grp:'digital',sub:'AI / ML',name:'Predictive maintenance platform',start:'2027Q1',end:'2028Q2',capex:6.0,opex:1.0,fte_int:3,fte_ext:5,prereq:['E08','E10','E11']},
+ {id:'E13',grp:'digital',sub:'Digital twin',name:'Well planning digital twin',start:'2027Q2',end:'2028Q4',capex:5.0,opex:0.8,fte_int:3,fte_ext:4,prereq:['E08','E10']},
+ {id:'E05',grp:'digital',sub:'AI agents',name:'Production optimisation agents',start:'2027Q3',end:'2029Q1',capex:7.5,opex:1.2,fte_int:4,fte_ext:6,prereq:['E08','E09','E03']},
+ {id:'E14',grp:'digital',sub:'Robotics',name:'Inspection robots & drones',start:'2027Q4',end:'2029Q2',capex:8.0,opex:1.0,fte_int:2,fte_ext:4,prereq:['E11','E12','E16']},
+ {id:'E08',grp:'data',sub:'Platform',name:'Enterprise data platform',start:'2026Q1',end:'2027Q1',capex:4.5,opex:0.9,fte_int:4,fte_ext:4,prereq:['E11']},
+ {id:'E09',grp:'data',sub:'Governance',name:'Master data & governance',start:'2026Q2',end:'2027Q3',capex:1.2,opex:0.3,fte_int:3,fte_ext:2,prereq:[]},
+ {id:'E10',grp:'data',sub:'Integration',name:'OT / IoT data integration',start:'2026Q3',end:'2027Q4',capex:3.4,opex:0.5,fte_int:2,fte_ext:4,prereq:['E12','E16']},
+ {id:'E11',grp:'infra',sub:'Cloud',name:'Hybrid cloud foundation',start:'2026Q1',end:'2026Q4',capex:3.0,opex:1.2,fte_int:2,fte_ext:3,prereq:[]},
+ {id:'E12',grp:'infra',sub:'Network',name:'Private 5G field connectivity',start:'2026Q2',end:'2027Q2',capex:5.5,opex:0.6,fte_int:1,fte_ext:3,prereq:[]},
+ {id:'E16',grp:'infra',sub:'Security',name:'OT cybersecurity',start:'2026Q2',end:'2027Q3',capex:2.6,opex:0.5,fte_int:2,fte_ext:2,prereq:[]}],
+/* enabler_link: enabler contributes to KPI (and so to the KPI's process) with a relative weight */
+links:[
+ ['E05','K1',.35],['E14','K1',.15],['E06','K1',.10],['E03','K1',.15],['E01','K1',.10],['E08','K1',.15],
+ ['E04','K2',.40],['E14','K2',.20],['E10','K2',.20],['E05','K2',.20],
+ ['E05','K11',.50],['E04','K11',.20],['E02','K11',.10],['E03','K11',.20],
+ ['E06','K3',.45],['E04','K3',.25],['E02','K3',.15],['E09','K3',.15],
+ ['E04','K4',.50],['E14','K4',.30],['E06','K4',.20],
+ ['E13','K5',.60],['E08','K5',.20],['E01','K5',.20],
+ ['E13','K6',.50],['E10','K6',.30],['E05','K6',.20],
+ ['E07','K7',.70],['E09','K7',.30],
+ ['E07','K8',.40],['E09','K8',.40],['E04','K8',.20],
+ ['E14','K9',.40],['E06','K9',.30],['E02','K9',.30],
+ ['E15','K10',.80],['E09','K10',.20]].map(([enabler,kpi,weight])=>({enabler,kpi,weight})),
+milestones:[
+ {id:'M1',date:'2026-12',name:'Cloud landing zone live',enabler:'E11',visibility:'public'},
+ {id:'M2',date:'2027-03',name:'Data platform MVP',enabler:'E08',visibility:'public'},
+ {id:'M3',date:'2027-06',name:'Connectivity on 80% of sites',enabler:'E12',visibility:'public'},
+ {id:'M4',date:'2027-12',name:'Procurement touchless for catalogue items',enabler:'E07',visibility:'public'},
+ {id:'M5',date:'2028-06',name:'Predictive maintenance on critical equipment',enabler:'E04',visibility:'public'},
+ {id:'M6',date:'2028-12',name:'Digital twin for all new wells',enabler:'E13',visibility:'private'},
+ {id:'M7',date:'2029-03',name:'Agents steer 60% of production decisions',enabler:'E05',visibility:'private'},
+ {id:'M8',date:'2029-06',name:'Robot inspection fleet at scale',enabler:'E14',visibility:'public'}],
+config:[
+ {key:'oil_price',label:'Brent price',unit:'$/bbl',value:75,min:45,max:110,step:1,lo:55,hi:95,desc:'Scales value of production-driven KPIs'},
+ {key:'realization',label:'KPI target realisation',unit:'%',value:.70,min:.3,max:1,step:.05,lo:.5,hi:.9,pct:1,desc:'Share of target delta actually achieved'},
+ {key:'adoption_delay',label:'Adoption lag after go-live',unit:'yr',value:.5,min:0,max:2,step:.25,lo:0,hi:1.5,desc:'Time between enabler readiness and first benefit'},
+ {key:'ramp_years',label:'Ramp to full benefit',unit:'yr',value:2,min:.5,max:4,step:.5,lo:1,hi:3,desc:'Linear ramp from first to full benefit'},
+ {key:'capex_overrun',label:'Capex overrun',unit:'%',value:.15,min:0,max:.6,step:.05,lo:0,hi:.4,pct:1,desc:'Contingency applied to every enabler'},
+ {key:'fte_cost',label:'Loaded FTE cost',unit:'$k/yr',value:140,min:80,max:220,step:5,lo:110,hi:170,desc:'Internal manpower; also scales labour-driven value'},
+ {key:'partner_premium',label:'Partner premium',unit:'%',value:.35,min:0,max:1,step:.05,lo:.15,hi:.6,pct:1,desc:'Contractor / ally cost above internal FTE'},
+ {key:'discount_rate',label:'Discount rate',unit:'%',value:.10,min:.04,max:.18,step:.01,lo:.06,hi:.14,pct:1,desc:'WACC used for NPV'},
+ {key:'horizon_end',label:'Value horizon end',unit:'',value:2033,min:2029,max:2035,step:1,nosens:1,desc:'Last year counted in NPV'}]
+};
+const GROUPS=[
+ {id:'people',name:'People, change & adoption'},{id:'digital',name:'Digital solutions'},
+ {id:'data',name:'Data'},{id:'infra',name:'Infrastructure'}];
+const BASE_OIL=75, BASE_FTE=140, T0=2026;
+
+/* =========================================================================
+   LOGIC — graph + cost/value model (pure functions; R equivalents later)
+   ========================================================================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const EN=Object.fromEntries(DATA.enablers.map(e=>[e.id,e]));
+const KP=Object.fromEntries(DATA.kpis.map(k=>[k.id,k]));
+const PR=Object.fromEntries(DATA.processes.map(p=>[p.id,p]));
+const q2t=(s,end)=>+s.slice(0,4)+(+s.slice(5)-1)/4+(end?.25:0);
+const m2t=s=>+s.slice(0,4)+(+s.slice(5,7)-.5)/12;
+const ov=(a,b,y)=>Math.max(0,Math.min(b,y+1)-Math.max(a,y));
+const qlabel=t=>{const y=Math.floor(t+1e-9),q=Math.round((t-y)*4)+1;return q>4?`${y+1}Q1`:`${y}Q${q}`};
+
+const dependents={};DATA.enablers.forEach(e=>dependents[e.id]=[]);
+DATA.enablers.forEach(e=>e.prereq.forEach(p=>dependents[p].push(e.id)));
+function walk(ids,next){const out=new Set(),st=[...ids];while(st.length){const id=st.pop();next(id).forEach(n=>{if(!out.has(n)){out.add(n);st.push(n)}})}return out}
+const ancestors=ids=>walk(ids,id=>EN[id].prereq);
+const descendants=ids=>walk(ids,id=>dependents[id]);
+const linksOfK=k=>DATA.links.filter(l=>l.kpi===k);
+const linksOfE=e=>DATA.links.filter(l=>l.enabler===e);
+
+/* normalised weight of enabler e in KPI k */
+const WN={};DATA.enablers.forEach(e=>WN[e.id]={});
+DATA.kpis.forEach(k=>{const ls=linksOfK(k.id),t=sum(ls.map(l=>l.weight));ls.forEach(l=>WN[l.enabler][k.id]=l.weight/t)});
+/* cost allocation: direct weight + share flowing back from dependents (foundations are shared) */
+const FLOW={};
+function flow(e){if(FLOW[e])return FLOW[e];const f={...WN[e]};
+  dependents[e].forEach(d=>{const fd=flow(d),n=EN[d].prereq.length;for(const k in fd)f[k]=(f[k]||0)+fd[k]/n});
+  return FLOW[e]=f}
+const ALLOC={};DATA.enablers.forEach(e=>{const f=flow(e.id),t=sum(Object.values(f))||1;ALLOC[e.id]={};for(const k in f)ALLOC[e.id][k]=f[k]/t});
+const chainOfK=k=>{const d=new Set(linksOfK(k).map(l=>l.enabler));return{direct:d,found:new Set([...ancestors(d)].filter(x=>!d.has(x)))}};
+const READY={};DATA.kpis.forEach(k=>{const c=chainOfK(k.id);READY[k.id]=Math.max(...[...c.direct,...c.found].map(e=>q2t(EN[e].end,1)))});
+
+const baseCfg=()=>Object.fromEntries(DATA.config.map(c=>[c.key,c.value]));
+function driverFactor(k,c){return k.value_driver==='oil_price'?c.oil_price/BASE_OIL:k.value_driver==='labor'?c.fte_cost/BASE_FTE:1}
+function model(c){
+  const Y=[];for(let y=T0;y<=c.horizon_end;y++)Y.push(y);const H=c.horizon_end+1;
+  const enCost={},enTot={},kVal={},kTot={},kRun={};
+  DATA.enablers.forEach(e=>{const s=q2t(e.start),f=q2t(e.end,1),d=f-s;
+    const labor=(e.fte_int*c.fte_cost+e.fte_ext*c.fte_cost*(1+c.partner_premium))/1000;
+    enCost[e.id]=Y.map(y=>e.capex*(1+c.capex_overrun)*ov(s,f,y)/d+labor*ov(s,f,y)+e.opex*ov(f,H,y));
+    enTot[e.id]=sum(enCost[e.id])});
+  DATA.kpis.forEach(k=>{const full=k.value_musd*c.realization*driverFactor(k,c);kRun[k.id]=full;
+    kVal[k.id]=Y.map(y=>{let a=0;for(let i=0;i<4;i++){const t=y+(i+.5)/4;a+=clamp((t-READY[k.id]-c.adoption_delay)/c.ramp_years,0,1)}return full*a/4});
+    kTot[k.id]=sum(kVal[k.id])});
+  const disc=Y.map(y=>1/Math.pow(1+c.discount_rate,y-T0));
+  return{c,Y,enCost,enTot,kVal,kTot,kRun,disc}}
+function portfolio(m,kids){
+  const val=m.Y.map((_,i)=>sum(kids.map(k=>m.kVal[k][i])));
+  const cost=m.Y.map((_,i)=>sum(DATA.enablers.map(e=>m.enCost[e.id][i]*sum(kids.map(k=>ALLOC[e.id][k]||0)))));
+  const net=val.map((v,i)=>v-cost[i]);let cum=0;const cumNet=net.map(n=>cum+=n);
+  const npv=sum(net.map((n,i)=>n*m.disc[i]));const V=sum(val),C=sum(cost);
+  const pi=cumNet.findIndex(x=>x>=0);
+  return{val,cost,cumNet,npv,V,C,roi:C?(V-C)/C:0,payback:pi<0?null:m.Y[pi],run:sum(kids.map(k=>m.kRun[k]))}}
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+const S={tab:'roadmap',aud:'mgmt',proc:new Set(DATA.processes.map(p=>p.id)),grp:new Set(GROUPS.map(g=>g.id)),q:'',sel:null,view:'timeline',alldeps:false,cfg:baseCfg()};
+try{const t=localStorage.getItem('rm-tab');if(t)S.tab=t}catch(e){}
+const visKpis=()=>DATA.kpis.filter(k=>(S.aud==='mgmt'||k.visibility==='public'));
+const fmtM=(v,d=1)=>(v<0?'−':'')+'$'+Math.abs(v).toFixed(d)+'M';
+const fmtPct=v=>(v*100).toFixed(0)+'%';
+const fmtN=(v,u)=>{const s=Math.abs(v)>=1000?v.toLocaleString('en-US'):String(v);return u==='$M'?'$'+s+'M':u==='%'?s+'%':s+' '+u};
+const GCOL=g=>`var(--${g})`;
+
+function highlight(){
+  const s=S.sel;if(!s)return null;let direct=new Set(),en,kpi,proc;
+  if(s.type==='kpi'){const c=chainOfK(s.id);direct=c.direct;en=new Set([...c.direct,...c.found]);kpi=new Set([s.id]);proc=new Set([KP[s.id].process])}
+  else if(s.type==='enabler'){const down=descendants([s.id]);direct=new Set([s.id]);en=new Set([s.id,...ancestors([s.id]),...down]);
+    kpi=new Set(DATA.links.filter(l=>l.enabler===s.id||down.has(l.enabler)).map(l=>l.kpi));proc=new Set([...kpi].map(k=>KP[k].process))}
+  else if(s.type==='process'){kpi=new Set(DATA.kpis.filter(k=>k.process===s.id).map(k=>k.id));
+    direct=new Set(DATA.links.filter(l=>kpi.has(l.kpi)).map(l=>l.enabler));en=new Set([...direct,...ancestors(direct)]);proc=new Set([s.id])}
+  return{direct,en,kpi,proc}}
+
+function visibleEnablers(){
+  let ids=new Set(DATA.enablers.map(e=>e.id));
+  if(S.proc.size<DATA.processes.length){const ks=new Set(visKpis().filter(k=>S.proc.has(k.process)).map(k=>k.id));
+    const d=new Set(DATA.links.filter(l=>ks.has(l.kpi)).map(l=>l.enabler));ids=new Set([...d,...ancestors(d)])}
+  const q=S.q.toLowerCase();
+  return DATA.enablers.filter(e=>ids.has(e.id)&&S.grp.has(e.grp)&&(!q||e.name.toLowerCase().includes(q)||e.sub.toLowerCase().includes(q)||filteredKpis().some(k=>WN[e.id][k.id])))}
+function filteredKpis(){const q=S.q.toLowerCase();return visKpis().filter(k=>S.proc.has(k.process)&&(!q||k.name.toLowerCase().includes(q)||linksOfK(k.id).some(l=>EN[l.enabler].name.toLowerCase().includes(q))))}
+
+/* =========================================================================
+   RENDER — roadmap tab
+   ========================================================================= */
+function renderStrip(){
+  const m=model(S.cfg),ks=visKpis().map(k=>k.id),p=portfolio(m,ks);
+  const capex=sum(DATA.enablers.map(e=>e.capex*sum(ks.map(k=>ALLOC[e.id][k]||0))));
+  const items=[
+    ['Investment to '+S.cfg.horizon_end,fmtM(p.C),`capex ${fmtM(capex*(1+S.cfg.capex_overrun))} incl. overrun`],
+    ['Value to '+S.cfg.horizon_end,fmtM(p.V),'cumulative, realised'],
+    ['Run-rate value',fmtM(p.run)+'/yr','at full adoption'],
+    ['NPV @ '+fmtPct(S.cfg.discount_rate),`<span class="${p.npv>=0?'pos':'neg'}">${fmtM(p.npv)}</span>`,`${T0}–${S.cfg.horizon_end}`],
+    ['ROI',`<span class="${p.roi>=0?'pos':'neg'}">${(p.roi*100).toFixed(0)}%</span>`,'(value − cost) / cost'],
+    ['Payback',p.payback?String(p.payback):'> '+S.cfg.horizon_end,`${DATA.enablers.length} enablers · ${ks.length} KPIs`]];
+  const html=items.map(([l,v,s])=>`<div class="stat"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+  $('#strip').innerHTML=html;$('#sstrip').innerHTML=html}
+
+function renderFilters(){
+  $('#f-proc').innerHTML=DATA.processes.map(p=>`<button class="chip" data-fproc="${p.id}" aria-pressed="${S.proc.has(p.id)}">${esc(p.name)}</button>`).join('');
+  $('#f-grp').innerHTML=GROUPS.map(g=>`<button class="chip" data-fgrp="${g.id}" aria-pressed="${S.grp.has(g.id)}"><span class="dot" style="background:${GCOL(g.id)}"></span>${esc(g.name)}</button>`).join('')}
+
+function renderKpis(H){
+  const m=model(S.cfg),ks=filteredKpis();
+  $('#kcount').textContent=`${ks.length} shown`;
+  $('#klist').innerHTML=ks.map(k=>{
+    const cls=S.sel&&S.sel.type==='kpi'&&S.sel.id===k.id?'sel':H?(H.kpi.has(k.id)?'hl':'dim'):'';
+    return `<button class="kcard ${cls}" data-sel="kpi:${k.id}">
+      <span class="ktop"><span class="kn">${esc(k.name)}</span><span class="kv">${fmtM(m.kRun[k.id])}/yr</span></span>
+      <span class="km"><span>${esc(PR[k.process].name)}</span>·<span class="mono">${fmtN(k.baseline,k.unit)} → ${fmtN(k.target,k.unit)}</span>${k.visibility==='private'?'<span class="vtag private">MGMT</span>':''}</span></button>`}).join('')||'<div class="fsec hint">No KPI matches the filters.</div>'}
+
+function renderTimeline(H){
+  const box=$('#viz'),W=Math.max(780,box.parentElement.clientWidth),L=220,R=56,T1=2030;
+  const x=t=>L+(t-T0)/(T1-T0)*(W-L-R);const ens=visibleEnablers();
+  const ms=DATA.milestones.filter(m=>S.aud==='mgmt'||m.visibility==='public');
+  let y=46;const pos={},body=[];
+  // milestones row
+  const msY=y+4;
+  ms.forEach(mm=>{const cls=H?(H.en.has(mm.enabler)?'on':'off'):'';const mx=x(m2t(mm.date));
+    body.push(`<g class="ms ${cls}" data-sel="enabler:${mm.enabler}" data-tip="<b>${esc(mm.id)} · ${esc(mm.name)}</b><br>${esc(mm.date)} · ${esc(EN[mm.enabler].name)}${mm.visibility==='private'?'<br>Management only':''}">
+      <path d="M${mx},${msY-6}L${mx+6},${msY}L${mx},${msY+6}L${mx-6},${msY}Z"/>
+      <text class="${H&&H.en.has(mm.enabler)?'t-ms':'t-q'}" x="${mx}" y="${msY+17}" text-anchor="middle">${mm.id}</text></g>`)});
+  body.push(`<text class="t-grp" x="0" y="${msY+4}">Milestones</text>`);
+  y+=34;
+  GROUPS.filter(g=>S.grp.has(g.id)).forEach(g=>{const rows=ens.filter(e=>e.grp===g.id);if(!rows.length)return;
+    y+=8;body.push(`<rect x="0" y="${y-1}" width="9" height="9" rx="2" style="fill:${GCOL(g.id)}"/><text class="t-grp" x="14" y="${y+7}">${esc(g.name)}</text><line class="gl" x1="0" x2="${W}" y1="${y+14}" y2="${y+14}"/>`);y+=22;
+    rows.forEach(e=>{const cy=y+9,x1=x(q2t(e.start)),x2=x(q2t(e.end,1));pos[e.id]={cy,x1,x2};
+      let cls='';if(H){cls=H.direct.has(e.id)?'on':H.en.has(e.id)?'found':'off'}
+      if(S.sel&&S.sel.type==='enabler'&&S.sel.id===e.id)cls+=' sel';
+      const cap=e.capex*(1+S.cfg.capex_overrun);
+      body.push(`<g class="bar ${cls}" data-sel="enabler:${e.id}" data-tip="<b>${esc(e.name)}</b><br>${esc(g.name)} › ${esc(e.sub)}<br>${e.start} – ${e.end}<br>Capex ${fmtM(cap)} · Opex ${fmtM(e.opex)}/yr<br>FTE ${e.fte_int} internal · ${e.fte_ext} partner">
+        <text class="t-lbl" x="14" y="${cy+4}">${esc(e.name.length>34?e.name.slice(0,33)+'…':e.name)}</text>
+        <rect class="b" x="${x1}" y="${cy-6}" width="${Math.max(3,x2-x1)}" height="12" style="fill:${GCOL(e.grp)};stroke:${GCOL(e.grp)}"/>
+        <text class="t-cost" x="${x2+5}" y="${cy+3.5}">${fmtM(cap)}</text></g>`);
+      y+=22});});
+  const Ht=y+12;
+  // grid
+  const grid=[];for(let t=T0;t<=T1+1e-9;t+=.25){const yr=Math.abs(t-Math.round(t))<1e-6;
+    grid.push(`<line class="gl ${yr?'y':''}" x1="${x(t)}" x2="${x(t)}" y1="${yr?14:30}" y2="${Ht}"/>`);
+    if(yr&&t<T1)grid.push(`<text class="t-axis" x="${x(t)+4}" y="14">${t}</text>`);
+    if(t<T1)grid.push(`<text class="t-q" x="${x(t+.125)}" y="38" text-anchor="middle">Q${Math.round((t-Math.floor(t))*4)+1}</text>`)}
+  const tt=2026+(304/365);grid.push(`<line class="today" x1="${x(tt)}" x2="${x(tt)}" y1="20" y2="${Ht}"/><text class="t-today" x="${x(tt)+3}" y="27">today</text>`);
+  // edges
+  const edges=[];ens.forEach(d=>d.prereq.forEach(p=>{if(!pos[p]||!pos[d.id])return;
+    const on=H&&H.en.has(p)&&H.en.has(d.id);if(!on&&!S.alldeps)return;
+    const a=pos[p],b=pos[d.id],sg=b.cy>a.cy?1:-1;
+    if(a.x2<=b.x1+1){const mx=(a.x2+b.x1)/2;edges.push(`<path class="edge ${on?'':'faint'}" d="M${a.x2},${a.cy}C${Math.max(mx,a.x2+18)},${a.cy} ${Math.min(mx,b.x1-18)},${b.cy} ${b.x1-1},${b.cy}" marker-end="url(#ah)"/>`)}
+    else{const xt=clamp(a.x2,b.x1,b.x2);edges.push(`<circle cx="${a.x2}" cy="${a.cy}" r="2" class="arrowhead" ${on?'':'opacity=".2"'}/><path class="edge ${on?'':'faint'}" d="M${a.x2},${a.cy+sg*6}L${xt},${b.cy-sg*8}" marker-end="url(#ah)"/>`)}}));
+  box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Enabler timeline">
+    <defs><marker id="ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead" d="M0,0L6,3L0,6Z"/></marker></defs>
+    ${grid.join('')}${body.join('')}${edges.join('')}</svg>`;
+  $('#legend').innerHTML=GROUPS.map(g=>`<span><i class="dot" style="background:${GCOL(g.id)}"></i>${g.name}</span>`).join('')+
+    `<span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>direct enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>◇ milestone</span><span>label = capex incl. overrun</span>`}
+
+function renderChain(H){
+  const box=$('#viz'),W=Math.max(700,box.parentElement.clientWidth-4);const ens=visibleEnablers();const ks=filteredKpis();
+  const procs=DATA.processes.filter(p=>S.proc.has(p.id)&&ks.some(k=>k.process===p.id));
+  const cols=[{t:'Infrastructure',items:ens.filter(e=>e.grp==='infra').map(e=>({id:e.id,type:'enabler',name:e.name,g:e.grp}))},
+    {t:'Data',items:ens.filter(e=>e.grp==='data').map(e=>({id:e.id,type:'enabler',name:e.name,g:e.grp}))},
+    {t:'People',items:ens.filter(e=>e.grp==='people').map(e=>({id:e.id,type:'enabler',name:e.name,g:e.grp}))},
+    {t:'Digital solutions',items:ens.filter(e=>e.grp==='digital').map(e=>({id:e.id,type:'enabler',name:e.name,g:e.grp}))},
+    {t:'Processes',items:procs.map(p=>({id:p.id,type:'process',name:p.name}))},
+    {t:'KPIs',items:ks.map(k=>({id:k.id,type:'kpi',name:k.name}))}];
+  const NH=24,GAP=7,TOP=34,wts=[.9,.9,.95,1.1,1.05,1.3],ws=sum(wts),cx0=[],cws=wts.map(w=>w/ws*W);cws.reduce((a,w,i)=>(cx0[i]=a,a+w),0);
+  const maxN=Math.max(...cols.map(c=>c.items.length));const Ht=TOP+maxN*(NH+GAP)+10;const P={};const m=model(S.cfg);
+  const nodes=[],links=[];
+  cols.forEach((c,ci)=>{const x0=cx0[ci]+2,nw=cws[ci]-(ci===cols.length-1?6:24),off=TOP+(maxN-c.items.length)*(NH+GAP)/2;
+    nodes.push(`<text class="t-grp" x="${x0}" y="14">${c.t}</text>`);
+    c.items.forEach((it,i)=>{const y0=off+i*(NH+GAP);P[it.type+it.id]={x0,x1:x0+nw,cy:y0+NH/2};
+      let cls='';if(H){const on=it.type==='enabler'?H.en.has(it.id):it.type==='kpi'?H.kpi.has(it.id):H.proc.has(it.id);cls=on?'on':'off'}
+      if(S.sel&&S.sel.type===it.type&&S.sel.id===it.id)cls+=' sel';
+      const maxc=Math.floor((nw-(it.type==='kpi'?44:14))/5.4);const nm=it.name.length>maxc?it.name.slice(0,maxc-1)+'…':it.name;
+      const right=it.type==='kpi'?`<text class="t-nodev" x="${x0+nw-5}" y="${y0+NH/2+3.5}" text-anchor="end">${fmtM(m.kRun[it.id],0)}</text>`:'';
+      const bar=it.g?`<rect x="${x0}" y="${y0}" width="4" height="${NH}" style="fill:${GCOL(it.g)};stroke:none"/>`:'';
+      nodes.push(`<g class="node ${cls}" data-sel="${it.type}:${it.id}" data-tip="<b>${esc(it.name)}</b>"><rect x="${x0}" y="${y0}" width="${nw}" height="${NH}" rx="3"/>${bar}<text class="t-node" x="${x0+9}" y="${y0+NH/2+3.5}">${esc(nm)}</text>${right}</g>`)})});
+  const curve=(a,b,cls)=>`<path class="lnk ${cls}" d="M${a.x1},${a.cy}C${(a.x1+b.x0)/2},${a.cy} ${(a.x1+b.x0)/2},${b.cy} ${b.x0},${b.cy}"/>`;
+  const st=(on)=>H?(on?'on':'off'):'';
+  ens.forEach(d=>d.prereq.forEach(p=>{const a=P['enabler'+p],b=P['enabler'+d.id];if(a&&b)links.push(curve(a,b,'pre '+st(H&&H.en.has(p)&&H.en.has(d.id))))}));
+  const ep=new Set();DATA.links.forEach(l=>{const k=KP[l.kpi];const key=l.enabler+k.process;if(ep.has(key))return;
+    const a=P['enabler'+l.enabler],b=P['process'+k.process];if(!a||!b)return;ep.add(key);
+    const on=H&&H.en.has(l.enabler)&&H.proc.has(k.process)&&DATA.links.some(x=>x.enabler===l.enabler&&H.kpi.has(x.kpi)&&KP[x.kpi].process===k.process);
+    links.push(curve(a,b,st(on)))});
+  ks.forEach(k=>{const a=P['process'+k.process],b=P['kpi'+k.id];if(a&&b)links.push(curve(a,b,st(H&&H.kpi.has(k.id))))});
+  box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Value chain">${links.join('')}${nodes.join('')}</svg>`;
+  $('#legend').innerHTML=GROUPS.map(g=>`<span><i class="dot" style="background:${GCOL(g.id)}"></i>${g.name}</span>`).join('')+`<span>– – prerequisite</span><span>── contributes to</span><span>KPI label = run-rate $M/yr</span>`}
+
+function roleRows(rows){return rows.join('')}
+function renderDetail(H){
+  const d=$('#detail'),m=model(S.cfg);$('#clearsel').hidden=!S.sel;
+  if(!S.sel){const ks=visKpis(),p=portfolio(m,ks.map(k=>k.id));
+    const rank=ks.map(k=>({k,v:m.kRun[k.id]})).sort((a,b)=>b.v-a.v);const mx=rank[0].v;
+    const en=DATA.enablers.map(e=>{const v=sum(ks.map(k=>m.kTot[k.id]*(WN[e.id][k.id]||0)));return{e,v,c:m.enTot[e.id]}}).sort((a,b)=>b.c-a.c);
+    $('#dtitle').textContent='Portfolio';
+    d.innerHTML=`<div><div class="eyebrow">Roadmap ${T0}–2029 · value to ${S.cfg.horizon_end}</div><h3>Select a KPI to trace what makes it possible</h3></div>
+      <div class="callout">Click a <b>KPI</b> to light up its direct enablers and the foundations underneath them. Click an <b>enabler</b> to see what it unlocks downstream. Figures follow the assumptions in the Sensitivity tab.</div>
+      <div><div class="eyebrow" style="margin-bottom:4px">Run-rate value by KPI ($M/yr)</div>
+      <table class="t"><tbody>${rank.map(r=>`<tr><td><button class="lk" data-sel="kpi:${r.k.id}">${esc(r.k.name)}</button><div class="minibar"><i style="width:${r.v/mx*100}%"></i></div></td><td class="r">${r.v.toFixed(1)}</td></tr>`).join('')}</tbody></table></div>
+      <div><div class="eyebrow" style="margin-bottom:4px">Largest investments ($M to ${S.cfg.horizon_end})</div>
+      <table class="t"><thead><tr><th>Enabler</th><th class="r">Cost</th><th class="r">Direct value</th></tr></thead><tbody>${en.slice(0,6).map(r=>`<tr><td><span class="en"><span class="dot" style="background:${GCOL(r.e.grp)}"></span><button class="lk" data-sel="enabler:${r.e.id}">${esc(r.e.name)}</button></span></td><td class="r">${r.c.toFixed(1)}</td><td class="r">${r.v?r.v.toFixed(1):'<span class="hint">foundation</span>'}</td></tr>`).join('')}</tbody></table></div>`;return}
+  const s=S.sel;
+  if(s.type==='kpi'){const k=KP[s.id],c=chainOfK(k.id),p=portfolio(m,[k.id]);
+    const rows=[...c.direct,...c.found].map(e=>({e:EN[e],dir:c.direct.has(e),w:WN[e][k.id]||0,a:m.enTot[e]*(ALLOC[e][k.id]||0),f:m.enTot[e]})).sort((a,b)=>b.dir-a.dir||b.a-a.a);
+    const chainCost=sum(rows.map(r=>r.f));const mss=DATA.milestones.filter(mm=>(S.aud==='mgmt'||mm.visibility==='public')&&H.en.has(mm.enabler));
+    $('#dtitle').textContent='KPI';
+    d.innerHTML=`<div><div class="eyebrow">${esc(PR[k.process].name)} ${k.visibility==='private'?'<span class="vtag private">MGMT ONLY</span>':'<span class="vtag">PUBLIC</span>'}</div><h3>${esc(k.name)}</h3></div>
+      <div class="kv"><div><div class="l">Baseline</div><div class="v">${fmtN(k.baseline,k.unit)}</div></div><div><div class="l">Target ${k.target_year}</div><div class="v">${fmtN(k.target,k.unit)}</div></div><div><div class="l">Ready</div><div class="v">${qlabel(READY[k.id]-.25)}</div></div></div>
+      <div class="kv"><div><div class="l">Run-rate</div><div class="v pos">${fmtM(p.run)}/yr</div></div><div><div class="l">Value to ${S.cfg.horizon_end}</div><div class="v">${fmtM(p.V)}</div></div><div><div class="l">NPV</div><div class="v ${p.npv>=0?'pos':'neg'}">${fmtM(p.npv)}</div></div></div>
+      <div class="callout"><b>${c.direct.size} direct enablers</b> rely on <b>${c.found.size} foundations</b>. Allocated cost ${fmtM(p.C)} (ROI ${(p.roi*100).toFixed(0)}%). Building the whole chain for this KPI alone would cost ${fmtM(chainCost)}. Value driver: ${k.value_driver==='oil_price'?'oil price':k.value_driver==='labor'?'labour cost':'fixed'}.</div>
+      <table class="t"><thead><tr><th>Enabler</th><th>Role</th><th class="r">Alloc. $M</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td><span class="en"><span class="dot" style="background:${GCOL(r.e.grp)}"></span><button class="lk" data-sel="enabler:${r.e.id}">${esc(r.e.name)}</button></span><div class="hint">${r.e.start}–${r.e.end}</div></td><td>${r.dir?`<span class="role d">DIRECT ${(r.w*100).toFixed(0)}%</span>`:'<span class="role f">FOUNDATION</span>'}</td><td class="r">${r.a.toFixed(1)}<div class="hint">of ${r.f.toFixed(1)}</div></td></tr>`).join('')}
+      </tbody><tfoot><tr><td colspan="2">Allocated to this KPI</td><td class="r">${p.C.toFixed(1)}</td></tr></tfoot></table>
+      ${mss.length?`<div><div class="eyebrow" style="margin-bottom:4px">Milestones on the path</div><table class="t"><tbody>${mss.map(mm=>`<tr><td class="mono">${mm.date}</td><td>${esc(mm.name)}</td></tr>`).join('')}</tbody></table></div>`:''}`;return}
+  if(s.type==='enabler'){const e=EN[s.id],g=GROUPS.find(g=>g.id===e.grp);const down=descendants([e.id]);
+    const ks=visKpis().filter(k=>ALLOC[e.id][k.id]);const dv=sum(ks.map(k=>m.kTot[k.id]*(WN[e.id][k.id]||0)));
+    const labor=(e.fte_int*S.cfg.fte_cost+e.fte_ext*S.cfg.fte_cost*(1+S.cfg.partner_premium))/1000;
+    $('#dtitle').textContent='Enabler';
+    d.innerHTML=`<div><div class="eyebrow"><span class="dot" style="background:${GCOL(e.grp)}"></span> ${esc(g.name)} › ${esc(e.sub)}</div><h3>${esc(e.name)}</h3></div>
+      <div class="kv"><div><div class="l">Period</div><div class="v">${e.start}–${e.end}</div></div><div><div class="l">Capex</div><div class="v">${fmtM(e.capex*(1+S.cfg.capex_overrun))}</div></div><div><div class="l">Opex</div><div class="v">${fmtM(e.opex)}/yr</div></div></div>
+      <div class="kv"><div><div class="l">Manpower</div><div class="v">${e.fte_int} int · ${e.fte_ext} ext</div></div><div><div class="l">People cost</div><div class="v">${fmtM(labor)}/yr</div></div><div><div class="l">Cost to ${S.cfg.horizon_end}</div><div class="v neg">${fmtM(m.enTot[e.id])}</div></div></div>
+      <div class="callout">${dv?`Direct value attributed: <b>${fmtM(dv)}</b> to ${S.cfg.horizon_end}. `:'<b>Foundation enabler</b>: no direct KPI, its cost is shared by everything built on it. '}Unlocks <b>${down.size}</b> downstream enablers and <b>${H.kpi.size}</b> KPIs. Sourcing: ${e.fte_ext>e.fte_int?'mainly partners / contractors':'mainly internal'}.</div>
+      ${e.prereq.length?`<div><div class="eyebrow" style="margin-bottom:4px">Requires</div>${e.prereq.map(p=>`<div><span class="en"><span class="dot" style="background:${GCOL(EN[p].grp)}"></span><button class="lk" data-sel="enabler:${p}">${esc(EN[p].name)}</button></span> <span class="hint">ends ${EN[p].end}</span></div>`).join('')}</div>`:''}
+      ${dependents[e.id].length?`<div><div class="eyebrow" style="margin-bottom:4px">Enables</div>${dependents[e.id].map(p=>`<div><span class="en"><span class="dot" style="background:${GCOL(EN[p].grp)}"></span><button class="lk" data-sel="enabler:${p}">${esc(EN[p].name)}</button></span></div>`).join('')}</div>`:''}
+      <table class="t"><thead><tr><th>KPI served</th><th class="r">Direct wt</th><th class="r">Cost share</th></tr></thead><tbody>
+      ${ks.sort((a,b)=>(ALLOC[e.id][b.id])-(ALLOC[e.id][a.id])).map(k=>`<tr><td><button class="lk" data-sel="kpi:${k.id}">${esc(k.name)}</button></td><td class="r">${WN[e.id][k.id]?(WN[e.id][k.id]*100).toFixed(0)+'%':'–'}</td><td class="r">${(ALLOC[e.id][k.id]*100).toFixed(0)}%</td></tr>`).join('')}</tbody></table>`;return}
+  if(s.type==='process'){const pr=PR[s.id],ks=visKpis().filter(k=>k.process===s.id),p=portfolio(m,ks.map(k=>k.id));
+    $('#dtitle').textContent='Process';
+    d.innerHTML=`<div><div class="eyebrow">Process · owner ${esc(pr.owner)}</div><h3>${esc(pr.name)}</h3></div>
+      <div class="kv"><div><div class="l">Run-rate</div><div class="v pos">${fmtM(p.run)}/yr</div></div><div><div class="l">Alloc. cost</div><div class="v">${fmtM(p.C)}</div></div><div><div class="l">NPV</div><div class="v ${p.npv>=0?'pos':'neg'}">${fmtM(p.npv)}</div></div></div>
+      <table class="t"><thead><tr><th>KPI</th><th class="r">Run-rate</th></tr></thead><tbody>${ks.map(k=>`<tr><td><button class="lk" data-sel="kpi:${k.id}">${esc(k.name)}</button></td><td class="r">${m.kRun[k.id].toFixed(1)}</td></tr>`).join('')}</tbody></table>
+      <div class="callout">${H.direct.size} direct enablers and ${H.en.size-H.direct.size} foundations sit behind this process.</div>`}}
+
+function renderRoadmap(){const H=highlight();renderStrip();renderFilters();renderKpis(H);
+  document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===S.view));
+  (S.view==='timeline'?renderTimeline:renderChain)(H);renderDetail(H)}
+
+/* =========================================================================
+   RENDER — sensitivity tab
+   ========================================================================= */
+function fmtCfg(c,v){return c.pct?(v*100).toFixed(0)+'%':c.key==='horizon_end'?String(v):v+' '+c.unit}
+function renderSliders(){const b=baseCfg();
+  $('#sliders').innerHTML=DATA.config.map(c=>`<div class="sl ${S.cfg[c.key]!==b[c.key]?'changed':''}"><div class="row"><b>${c.label}</b><span class="num" id="v-${c.key}">${fmtCfg(c,S.cfg[c.key])}</span></div>
+    <input type="range" id="s-${c.key}" data-cfg="${c.key}" min="${c.min}" max="${c.max}" step="${c.step}" value="${S.cfg[c.key]}" aria-label="${c.label}">
+    <div class="row"><span class="d">${c.desc}</span><span class="base">base ${fmtCfg(c,c.value)}</span></div></div>`).join('')}
+function ticks(a,b,n=5){const sp=b-a||1,s0=sp/n,mg=Math.pow(10,Math.floor(Math.log10(s0)));const st=[1,2,2.5,5,10].map(x=>x*mg).find(x=>x>=s0);const o=[];for(let v=Math.ceil(a/st)*st;v<=b+1e-9;v+=st)o.push(+v.toFixed(6));return o}
+function renderSens(){
+  renderStrip();const ks=visKpis().map(k=>k.id);const m=model(S.cfg),p=portfolio(m,ks);const mb=model({...baseCfg(),horizon_end:S.cfg.horizon_end}),pb=portfolio(mb,ks);
+  // flow chart
+  {const W=Math.max(320,$('#c-flow').clientWidth-20),Hh=250,L=44,R=10,T=12,B=26;const Y=m.Y;const lo=Math.min(-Math.max(...p.cost),...p.cumNet,...pb.cumNet),hi=Math.max(...p.val,...p.cumNet,...pb.cumNet);
+   const tk=ticks(lo,hi);const y0=tk[0]<lo?tk[0]:lo,y1=tk[tk.length-1]>hi?tk[tk.length-1]:hi;const sy=v=>T+(y1-v)/(y1-y0)*(Hh-T-B);
+   const bw=(W-L-R)/Y.length,cx=i=>L+bw*(i+.5);const o=[];
+   tk.forEach(t=>o.push(`<line x1="${L}" x2="${W-R}" y1="${sy(t)}" y2="${sy(t)}" style="stroke:var(--line)"/><text class="c-ax" x="${L-5}" y="${sy(t)+3}" text-anchor="end">${t}</text>`));
+   o.push(`<line x1="${L}" x2="${W-R}" y1="${sy(0)}" y2="${sy(0)}" style="stroke:var(--muted)"/>`);
+   Y.forEach((y,i)=>{o.push(`<rect x="${cx(i)-bw*.3}" y="${sy(p.val[i])}" width="${bw*.28}" height="${sy(0)-sy(p.val[i])}" style="fill:var(--pos)"><title>${y} value ${p.val[i].toFixed(1)}</title></rect>`);
+     o.push(`<rect x="${cx(i)+bw*.02}" y="${sy(0)}" width="${bw*.28}" height="${sy(-p.cost[i])-sy(0)}" style="fill:var(--neg)"><title>${y} cost ${p.cost[i].toFixed(1)}</title></rect>`);
+     o.push(`<text class="c-ax" x="${cx(i)}" y="${Hh-8}" text-anchor="middle">${y}</text>`)});
+   const line=(arr,st)=>`<path d="${arr.map((v,i)=>(i?'L':'M')+cx(i)+','+sy(v)).join('')}" style="fill:none;stroke:var(--ink);stroke-width:${st?1.2:2};${st?'stroke-dasharray:4 3;stroke-opacity:.5':''}"/>`;
+   o.push(line(pb.cumNet,1),line(p.cumNet,0));p.cumNet.forEach((v,i)=>o.push(`<circle cx="${cx(i)}" cy="${sy(v)}" r="2.5" style="fill:var(--ink)"/>`));
+   const li=Y.length-1;o.push(`<text class="c-val" x="${cx(li)-6}" y="${sy(p.cumNet[li])-7}" text-anchor="end">cum. net ${fmtM(p.cumNet[li])}</text>`);
+   o.push(`<g transform="translate(${L+6},${T+4})"><rect width="9" height="9" style="fill:var(--pos)"/><text class="c-ax" x="13" y="8">value</text><rect x="58" width="9" height="9" style="fill:var(--neg)"/><text class="c-ax" x="71" y="8">cost</text><line x1="110" x2="128" y1="5" y2="5" style="stroke:var(--ink);stroke-width:2"/><text class="c-ax" x="132" y="8">cumulative net</text></g>`);
+   $('#c-flow').innerHTML=`<svg viewBox="0 0 ${W} ${Hh}">${o.join('')}</svg>`}
+  // tornado
+  {const lev=DATA.config.filter(c=>!c.nosens).map(c=>{const nl=portfolio(model({...S.cfg,[c.key]:c.lo}),ks).npv,nh=portfolio(model({...S.cfg,[c.key]:c.hi}),ks).npv;return{c,nl,nh,sp:Math.abs(nh-nl)}}).sort((a,b)=>b.sp-a.sp);
+   const W=Math.max(300,$('#c-tor').clientWidth-24),rh=26,L=130,R=12,T=18,Hh=T+lev.length*rh+18;const all=lev.flatMap(l=>[l.nl,l.nh]).concat(p.npv);const lo=Math.min(...all),hi=Math.max(...all);const pad=(hi-lo)*.18||1;
+   const sx=v=>L+(v-(lo-pad))/((hi+pad)-(lo-pad))*(W-L-R);const o=[];
+   ticks(lo-pad,hi+pad,4).forEach(t=>o.push(`<line x1="${sx(t)}" x2="${sx(t)}" y1="${T-4}" y2="${Hh-16}" style="stroke:var(--line)"/><text class="c-ax" x="${sx(t)}" y="${Hh-4}" text-anchor="middle">${t}</text>`));
+   lev.forEach((l,i)=>{const y=T+i*rh;const a=Math.min(l.nl,l.nh),b=Math.max(l.nl,l.nh);
+     o.push(`<text class="c-lbl" x="0" y="${y+11}">${l.c.label}</text><text class="c-ax" x="0" y="${y+21}">${fmtCfg(l.c,l.c.lo)} → ${fmtCfg(l.c,l.c.hi)}</text>`);
+     o.push(`<rect x="${sx(Math.min(l.nl,p.npv))}" y="${y+3}" width="${Math.abs(sx(l.nl)-sx(p.npv))}" height="14" style="fill:var(--muted);fill-opacity:.45"><title>low: ${fmtM(l.nl)}</title></rect>`);
+     o.push(`<rect x="${sx(Math.min(l.nh,p.npv))}" y="${y+3}" width="${Math.abs(sx(l.nh)-sx(p.npv))}" height="14" style="fill:var(--digital)"><title>high: ${fmtM(l.nh)}</title></rect>`);
+     o.push(`<text class="c-val" x="${sx(a)-3}" y="${y+14}" text-anchor="end">${a.toFixed(0)}</text><text class="c-val" x="${sx(b)+3}" y="${y+14}">${b.toFixed(0)}</text>`)});
+   o.push(`<line x1="${sx(p.npv)}" x2="${sx(p.npv)}" y1="${T-6}" y2="${Hh-16}" style="stroke:var(--ink);stroke-width:1.5"/><text class="c-val" x="${sx(p.npv)}" y="${T-8}" text-anchor="middle">NPV ${fmtM(p.npv,0)}</text>`);
+   $('#c-tor').innerHTML=`<svg viewBox="-2 0 ${W+4} ${Hh}">${o.join('')}</svg><div class="legend" style="border:0;padding:4px 0 0"><span><i class="dot" style="background:var(--muted);opacity:.5"></i>low value of lever</span><span><i class="dot" style="background:var(--digital)"></i>high value of lever</span></div>`}
+  // kpi bars
+  {const rows=visKpis().map(k=>({k,v:m.kTot[k.id],b:mb.kTot[k.id]})).sort((a,b)=>b.v-a.v);const W=Math.max(300,$('#c-kpi').clientWidth-20),rh=20,L=160,R=40,T=4,Hh=T+rows.length*rh+4;
+   const mx=Math.max(...rows.flatMap(r=>[r.v,r.b]))||1;const sx=v=>L+v/mx*(W-L-R);const o=[];
+   rows.forEach((r,i)=>{const y=T+i*rh;const nm=r.k.name.length>28?r.k.name.slice(0,27)+'…':r.k.name;
+     o.push(`<text class="c-lbl" x="0" y="${y+13}">${esc(nm)}</text><rect x="${L}" y="${y+4}" width="${Math.max(0,sx(r.v)-L)}" height="11" style="fill:var(--pos)"/><line x1="${sx(r.b)}" x2="${sx(r.b)}" y1="${y+1}" y2="${y+18}" style="stroke:var(--ink);stroke-width:1.5"/><text class="c-val" x="${Math.max(sx(r.v),sx(r.b))+4}" y="${y+13}">${r.v.toFixed(0)}</text>`)});
+   $('#c-kpi').innerHTML=`<svg viewBox="0 0 ${W} ${Hh}">${o.join('')}</svg>`}
+}
+
+/* =========================================================================
+   RENDER — data model tab
+   ========================================================================= */
+const SCHEMA=[
+ {t:'process',d:'Business processes being transformed.',n:DATA.processes.length,f:[['id','text','PK'],['name','text',''],['owner','text','accountable role'],['visibility','public | private','']]},
+ {t:'kpi',d:'KPI or metric attached to one process. Value is the annual $ at full target, scaled by its driver.',n:DATA.kpis.length,f:[['id','text','PK'],['process_id','text','→ process.id'],['name','text',''],['unit','text',''],['baseline','num',''],['target','num',''],['target_year','int',''],['value_musd','num','annual $M at target'],['value_driver','oil_price | labor | none','sensitivity link'],['visibility','public | private','']]},
+ {t:'enabler',d:'Investment item. Grouped into 4 groups with free sub-category; carries the three resource types ($, expertise, manpower).',n:DATA.enablers.length,f:[['id','text','PK'],['group','people | digital | data | infra',''],['subcategory','text',''],['name','text',''],['start_q / end_q','YYYYQn',''],['capex_musd','num','one-off'],['opex_musd_yr','num','after go-live'],['fte_internal','num','built / acquired internally'],['fte_partner','num','allies & contractors'],['visibility','public | private','']]},
+ {t:'enabler_link',d:'Many-to-many: which enablers move which KPI (and so which process). Weight drives attribution.',n:DATA.links.length,f:[['enabler_id','text','→ enabler.id'],['kpi_id','text','→ kpi.id'],['weight','0–1','relative contribution']]},
+ {t:'enabler_dependency',d:'Prerequisites between enablers (DAG). Foundations share their cost across dependents.',n:sum(DATA.enablers.map(e=>e.prereq.length)),f:[['enabler_id','text','→ enabler.id'],['requires_id','text','→ enabler.id']]},
+ {t:'milestone',d:'Visible checkpoints, tied to the enabler that delivers them.',n:DATA.milestones.length,f:[['id','text','PK'],['date','YYYY-MM',''],['name','text',''],['enabler_id','text','→ enabler.id'],['visibility','public | private','']]},
+ {t:'config (pin)',d:'Scenario assumptions, key / value. Stored on a pin, editable in the Sensitivity tab.',n:DATA.config.length,f:DATA.config.map(c=>[c.key,c.pct?'%':c.unit||'year','base '+fmtCfg(c,c.value)])}];
+function renderModel(){$('#schema').innerHTML=SCHEMA.map(s=>`<div class="box"><div class="bh"><h2 style="text-transform:none;letter-spacing:0;font-family:var(--mono);color:var(--ink)">${s.t}</h2><span class="sp hint">${s.n} rows</span></div><p>${s.d}</p>
+  <table class="t" style="margin:4px 0 6px"><tbody>${s.f.map(f=>`<tr><td><code>${f[0]}</code></td><td class="hint">${f[1]}</td><td>${f[2].startsWith('→')?`<span class="fk">${f[2]}</span>`:`<span class="hint">${f[2]}</span>`}</td></tr>`).join('')}</tbody></table></div>`).join('')}
+
+/* =========================================================================
+   EVENTS
+   ========================================================================= */
+function render(){
+  document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===S.tab));
+  ['roadmap','sens','model'].forEach(t=>$('#tab-'+t).hidden=S.tab!==t);
+  document.querySelectorAll('[data-aud]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.aud===S.aud));
+  if(S.tab==='roadmap')renderRoadmap();else if(S.tab==='sens'){renderSliders();renderSens()}else renderModel()}
+document.addEventListener('click',ev=>{const t=ev.target.closest('[data-sel],[data-tab],[data-aud],[data-view],[data-fproc],[data-fgrp],#clearsel,#clearf,#reset');
+  if(!t){if(ev.target.closest('#viz svg')&&S.sel){S.sel=null;renderRoadmap()}return}
+  if(t.dataset.sel){const[type,id]=t.dataset.sel.split(':');S.sel=S.sel&&S.sel.type===type&&S.sel.id===id?null:{type,id};renderRoadmap();return}
+  if(t.dataset.tab){S.tab=t.dataset.tab;try{localStorage.setItem('rm-tab',S.tab)}catch(e){}render();return}
+  if(t.dataset.aud){S.aud=t.dataset.aud;if(S.sel&&S.sel.type==='kpi'&&!visKpis().some(k=>k.id===S.sel.id))S.sel=null;render();return}
+  if(t.dataset.view){S.view=t.dataset.view;renderRoadmap();return}
+  if(t.dataset.fproc){const id=t.dataset.fproc;
+    if(S.proc.size===DATA.processes.length)S.proc=new Set([id]);else if(S.proc.has(id)){S.proc.delete(id);if(!S.proc.size)S.proc=new Set(DATA.processes.map(p=>p.id))}else S.proc.add(id);renderRoadmap();return}
+  if(t.dataset.fgrp){const id=t.dataset.fgrp;S.grp.has(id)?S.grp.delete(id):S.grp.add(id);if(!S.grp.size)S.grp=new Set(GROUPS.map(g=>g.id));renderRoadmap();return}
+  if(t.id==='clearsel'){S.sel=null;renderRoadmap();return}
+  if(t.id==='clearf'){S.proc=new Set(DATA.processes.map(p=>p.id));S.grp=new Set(GROUPS.map(g=>g.id));S.q='';$('#q').value='';renderRoadmap();return}
+  if(t.id==='reset'){S.cfg=baseCfg();renderSliders();renderSens()}});
+document.addEventListener('input',ev=>{const t=ev.target;
+  if(t.dataset.cfg){const c=DATA.config.find(c=>c.key===t.dataset.cfg);S.cfg[c.key]=+t.value;$('#v-'+c.key).textContent=fmtCfg(c,+t.value);
+    t.closest('.sl').classList.toggle('changed',+t.value!==c.value);renderSens()}
+  if(t.id==='q'){S.q=t.value;renderRoadmap()}
+  if(t.id==='alldeps'){S.alldeps=t.checked;renderRoadmap()}});
+const tip=$('#tip');
+document.addEventListener('mousemove',ev=>{const t=ev.target.closest&&ev.target.closest('[data-tip]');if(!t){tip.hidden=true;return}
+  tip.innerHTML=t.dataset.tip;tip.hidden=false;const w=tip.offsetWidth,h=tip.offsetHeight;
+  tip.style.left=Math.min(ev.clientX+14,innerWidth-w-8)+'px';tip.style.top=Math.min(ev.clientY+14,innerHeight-h-8)+'px'});
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(S.tab==='roadmap')renderRoadmap();else if(S.tab==='sens')renderSens()},120)});
+render();
+</script>
