@@ -2,6 +2,10 @@
 
 You are helping build a digital transformation roadmap for 2026–2029. The company is moving its processes to an integrated system of **humans, AI agents and robots**. You work through the business processes **one at a time**, and you are the only agent writing this data. Your job is to turn what you learn about that process into rows for the roadmap database, in the exact format below.
 
+For each process you will be given:
+- the process ID and name, and whatever source material is available (interviews, documents, data)
+- the **current catalogue** of KPIs, enablers, dependencies and milestones already in the database, including those from processes you have already done
+
 Your output is loaded straight into a database and a dashboard. Rows in the wrong format get rejected. Follow the format exactly, and keep your reasoning in the notes section (see [Output format](#output-format)), never in the data rows.
 
 ---
@@ -24,8 +28,9 @@ investment ──► ENABLER ──(weight)──► KPI ──► PROCESS
 
 The dashboard calculates the following. You don't compute any of it, but your numbers drive it:
 - **Extra-resources scenarios**: more resources shorten each enabler according to its `scalability` (start date fixed), and the same work is spread over the shorter build.
-- **Cost per year**: capex is spread over the build period. People cost is counted during the build, with partner staff at a premium. Opex runs from go-live to the end of the horizon.
-- **KPI ready date**: the latest end date across the KPI's enablers and all of their prerequisites.
+- **Cost per year**: capex is spread evenly over the build period. People cost is counted during the build, with partner staff at a premium. Opex runs from go-live to the end of the horizon.
+- **KPI ready date**: the latest end date across the KPI's enablers and all of their prerequisites (in the scenario, after any shortening).
+- **Date conflicts**: a prerequisite that goes live after the enabler needing it, or an end before the start, is loaded anyway and shown in red.
 - **Value per year**: `value_musd` × the share of the target achieved × the driver factor × the adoption ramp after the ready date.
 - **Cost allocation**: an enabler's cost is split across KPIs by link weight. Foundation enablers pass their cost on to the KPIs of the enablers built on them.
 
@@ -86,7 +91,7 @@ Rules:
 | `subcategory` | text | Free text, short. Reuse existing ones when they fit (list below). |
 | `name` | text | Max 40 characters, describes the thing being built, e.g. `Predictive maintenance platform` |
 | `start_q` | text | `YYYYQn`, e.g. `2027Q1`, from 2026Q1 to 2029Q4 |
-| `end_q` | text | `YYYYQn`, the quarter the enabler goes live. Must not be before `start_q`. |
+| `end_q` | text | `YYYYQn`, the quarter the enabler goes live (inclusive: `2027Q1`–`2027Q1` is one quarter). Should not be before `start_q`; if it is, the row still loads, is shown in red, and is costed as one quarter long. |
 | `capex_musd` | number | One-off investment in $M (licences, hardware, implementation by vendors) |
 | `opex_musd_yr` | number | Running cost per year after go-live, in $M |
 | `fte_internal` | number | Average internal people (FTE) working on the build: expertise or manpower that is **built or hired internally** |
@@ -119,10 +124,12 @@ duration with extra resources = plan duration × (resource multiplier)^(−s)
 
 | s | meaning | double the resources → |
 |---|---|---|
-| 0 | **Rigid.** More resources don't help (fixed lead times, regulation, behaviour change). | same duration, no extra cost |
-| 0.3–0.7 | **Diminishing returns.** Coordination, learning curves, sequential steps. | 20–40% shorter, total cost rises |
+| 0 | **Rigid.** More resources don't help (fixed lead times, regulation, behaviour change). No resources are added. | same duration, same cost |
+| 0.3–0.7 | **Diminishing returns.** Coordination, learning curves, sequential steps. | 19–38% shorter, total build cost +23% to +62% |
 | 1 | **Linear.** Work splits cleanly across people. | half the time, same total cost |
-| 1.1–1.5 | **Better than linear.** Many independent work packages, vendor capacity, or economies of scale. Rare. | more than half the time saved, total cost falls |
+| 1.1–1.5 | **Better than linear.** Many independent work packages, vendor capacity, or economies of scale. Rare. | 53–65% shorter, total build cost −7% to −29% |
+
+Total build cost (capex and people effort) scales by (resource multiplier)^(1 − s). A duration never goes below one quarter.
 
 The app's Sensitivity tab has an **Extra resources** lever (1× = plan, 2× = double). It applies the formula above to every enabler, spreads the same work over the shorter build, and recalculates the yearly expenditure. You only provide `s`.
 
@@ -188,7 +195,7 @@ Agents don't change the config. Use only these keys as `value_driver`:
 | `fte_cost` | Loaded cost per FTE, $k/yr (base 140) | comes from saved people time |
 | `none` | no scaling | is a fixed saving (contracts, inventory, fines avoided) |
 
-The other keys are scenario levers, not drivers: `realization`, `adoption_delay`, `ramp_years`, `capex_overrun`, `partner_premium`, `discount_rate`, `horizon_end`. If a KPI needs a driver that doesn't exist (e.g. gas price), use `none`, and propose the new key in the notes.
+The other keys are scenario levers, not drivers: `realization`, `adoption_delay`, `ramp_years`, `capex_overrun`, `partner_premium`, `discount_rate`, `horizon_end`, `resource_multiplier`. If a KPI needs a driver that doesn't exist (e.g. gas price), use `none`, and propose the new key in the notes.
 
 ---
 
@@ -196,7 +203,8 @@ The other keys are scenario levers, not drivers: `realization`, `adoption_delay`
 
 ### 3.1 ID rules
 - IDs are text, case-sensitive, with no spaces.
-- Use the prefixes above with a two-digit counter that starts at `01` for each process.
+- Use the prefixes above with a two-digit counter that starts at `01` for each process (`K-P2-01`, `E-P2-01`, `M-P2-01`, `E-X-01`).
+- The catalogue may still contain sample rows with old-style IDs (`K1`, `E01`, `M1`). You may reuse them, but give every new row a new-style ID.
 - Never reuse or renumber an existing ID. If an item is dropped, leave its number unused.
 
 ### 3.2 Shared foundations
@@ -325,3 +333,5 @@ M-P2-01,2028-06,Predictive maintenance on critical equipment,E-P2-01,public
 Notes excerpt:
 - K-P2-02 value: (3.9 − 3.1) $/boe × 14 M boe/yr = $11.2M/yr. It is private because the saving comes partly from contractor reductions.
 - E-P2-01 depends on the shared data platform (E-X-03) and OT/IoT integration (E-X-05) from the catalogue.
+- E-P2-01 scalability 0.7: model training can run in parallel per equipment class, but each model needs months of sensor history and field validation.
+- E-P2-02 scalability 0.4: more trainers help, but engineers can only absorb training alongside their shifts.
