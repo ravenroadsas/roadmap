@@ -9,18 +9,11 @@
   --bg:#f6f7f5; --panel:#ffffff; --ink:#1b2025; --muted:#68727c; --faint:#9aa3ab; --line:#e1e4e2; --soft:#eef0ee;
   --people:#c97a1e; --digital:#2f6db0; --data:#14857a; --infra:#6b5fa8;
   --pos:#2f8a55; --neg:#b4423a; --sel:#1b2025; --hl:#fff4cc;
+  color-scheme:light;
   --serif:"Newsreader",Georgia,"Times New Roman",serif;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#121518; --panel:#191d21; --ink:#e4e8ea; --muted:#99a3ab; --faint:#69737b; --line:#2a3036; --soft:#20252a;
-  --people:#e09a45; --digital:#5f97d8; --data:#3bb0a3; --infra:#9a8fd6;
-  --pos:#58b07c; --neg:#de6f66; --sel:#e4e8ea; --hl:#3a3420; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#121518; --panel:#191d21; --ink:#e4e8ea; --muted:#99a3ab; --faint:#69737b; --line:#2a3036; --soft:#20252a;
-  --people:#e09a45; --digital:#5f97d8; --data:#3bb0a3; --infra:#9a8fd6;
-  --pos:#58b07c; --neg:#de6f66; --sel:#e4e8ea; --hl:#3a3420; color-scheme:dark}
 
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:12px/1.45 var(--sans)}
@@ -40,6 +33,8 @@ nav.tabs{display:flex;gap:2px;margin-left:auto}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
 .seg button{border:0;background:none;padding:5px 10px;cursor:pointer;color:var(--muted);font-size:11px}
+.seg-lg button{padding:6px 14px;font-size:12px;font-weight:500}
+.seg-lg small{font-weight:400;opacity:.65;margin-left:4px;font-size:10.5px}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
 :focus-visible{outline:2px solid var(--digital);outline-offset:1px}
 
@@ -222,9 +217,10 @@ a.lk:hover,button.lk:hover{text-decoration-color:var(--ink)}
 
       <div class="canvas box">
         <div class="bh">
-          <div class="seg" role="group" aria-label="View">
-            <button data-view="timeline" aria-pressed="true">Timeline</button>
-            <button data-view="chain" aria-pressed="false">Value chain</button>
+          <span class="flabel">View</span>
+          <div class="seg seg-lg" role="group" aria-label="View">
+            <button data-view="timeline" aria-pressed="true">Timeline <small>when</small></button>
+            <button data-view="chain" aria-pressed="false">Value chain <small>how it connects</small></button>
           </div>
           <label class="toggle sp"><input type="checkbox" id="alldeps"> Show all dependencies</label>
         </div>
