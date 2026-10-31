@@ -56,6 +56,7 @@ inst/app/www/            styles.css, roadmap.js (timeline, value chain, highligh
 inst/extdata/            seed CSVs, one per table + config.csv
 inst/sql/schema.sql      DDL
 tests/testthat/          unit tests for every function layer
+docs/data_authoring_guide.md  how AI agents must format per-process data
 app.R                    Posit Connect entry point
 ```
 
