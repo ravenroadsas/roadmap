@@ -23,6 +23,7 @@ app_ui <- function(request) {
         shiny::tabPanel("Overview", value = "overview", mod_overview_ui("overview")),
         shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
         shiny::tabPanel("Sensitivity", value = "sensitivity", mod_sensitivity_ui("sens", ctx$cfg, ctx$data)),
-        shiny::tabPanel("Data model", value = "model", mod_datamodel_ui("model"))))
+        shiny::tabPanel("Data model", value = "model", mod_datamodel_ui("model")),
+        shiny::tabPanel("Glossary", value = "glossary", mod_glossary_ui("glossary", ctx$data))))
   )
 }

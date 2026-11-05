@@ -26,6 +26,51 @@ investment ──► ENABLER ──(weight)──► KPI ──► PROCESS
 - An **enabler dependency** says that one enabler can't finish before another one is ready. For example, predictive maintenance needs OT/IoT data integration.
 - A **milestone** is a visible checkpoint delivered by one enabler.
 
+### 1.1 Glossary
+
+Read the tree from the value down to the foundations. The value comes from a KPI. The KPI is moved by its **direct enablers**, with link weights. Each enabler **requires** others, which are its **foundations**. Milestones (◇) mark progress on an enabler. This is the real tree of "Unplanned production downtime" in the sample data. The app's Glossary tab draws the same tree, left to right, for any KPI.
+
+```
+VALUE  $17.9M/yr at full adoption
+└── KPI  Unplanned production downtime · Production operations · 4.1% → 2.3%
+    ├── 40%  Predictive maintenance platform  [direct · digital]  ◇ M5
+    │       ├── requires  Enterprise data platform  [foundation · data]  ◇ M2
+    │       │       └── requires  Hybrid cloud foundation  [foundation · infra]  ◇ M1
+    │       ├── requires  OT / IoT data integration  (direct too, see below)
+    │       └── requires  Hybrid cloud foundation  (see above)
+    ├── 20%  OT / IoT data integration  [direct · data]
+    │       ├── requires  Private 5G field connectivity  [foundation · infra]  ◇ M3
+    │       └── requires  OT cybersecurity  [foundation · infra]
+    ├── 20%  Production optimisation agents  [direct · digital]  ◇ M7
+    │       ├── requires  Enterprise data platform  (see above)
+    │       ├── requires  Master data & governance  [foundation · data]
+    │       └── requires  Human–AI–robot operating model  [foundation · people]
+    └── 20%  Inspection robots & drones  [direct · digital]  ◇ M8
+            ├── requires  Hybrid cloud foundation  (see above)
+            ├── requires  Private 5G field connectivity  (see above)
+            └── requires  OT cybersecurity  (see above)
+```
+
+An enabler is a **direct enabler** of a KPI when it has a link to it, and a **foundation** of that KPI when it is only needed by the KPI's enablers. The same enabler can play both roles: here OT / IoT integration moves the KPI directly (20%) and is also required by predictive maintenance. Across KPIs it changes too: the Enterprise data platform is a foundation here but a direct enabler of "Barrels per employee".
+
+| Element | What it is | Question it answers | Where it lives |
+|---|---|---|---|
+| **Enabler** | Something we invest in and build. The only element that consumes money, internal staff and partner staff. Has a start and a go-live date. | What do we build, when, for how much? | sheet `enabler` |
+| **Foundation** | An enabler in a particular role: needed by other enablers but not moving the KPI itself. Its cost is shared by the KPIs of everything built on it. | What has to exist first? | derived from `enabler_dependency` |
+| **KPI** | A measurable result on one process, with a baseline and a target, in its own unit. | How do we know the process improved? | sheet `kpi` |
+| **Value** | What a KPI is worth in $M per year at target. The only place money comes in. | What is the improvement worth? | `kpi.value_musd` |
+| **Milestone** | A visible checkpoint delivered by one enabler. No cost, no value. | What can management check has happened? | sheet `milestone` |
+| **Process** | The business process being transformed. Every KPI belongs to one. | | sheet `process` |
+| **Process owner** | The accountable role for a process. | | `process.owner` |
+| **Enabler link (weight)** | An enabler helps move a KPI, by this much relative to the other enablers on that KPI. | | sheet `enabler_link` |
+| **Dependency** | One enabler needs another to be live before it can go live. | | sheet `enabler_dependency` |
+| **Late dependency** | A prerequisite that goes live after the enabler that needs it (red arrow). | | computed |
+| **Ready date** | When a KPI can start producing value: latest go-live across its enablers and their prerequisites. | | computed |
+| **Run-rate vs realised value** | $/yr at full adoption vs value actually earned to the horizon. | | computed |
+| **Allocated cost** | The share of enabler cost charged to a KPI or process, including foundations. | | computed |
+| **Scalability** | How an enabler's duration responds to more resources (0 rigid, 1 linear). | | `enabler.scalability` |
+| **Config / scenario** | The assumptions the app uses for cost and value. | | sheet `config` |
+
 The dashboard calculates the following. You don't compute any of it, but your numbers drive it:
 - **Extra-resources scenarios**: more resources shorten each enabler according to its `scalability` (start date fixed), and the same work is spread over the shorter build.
 - **Cost per year**: capex is spread evenly over the build period. People cost is counted during the build, with partner staff at a premium. Opex runs from go-live to the end of the horizon.

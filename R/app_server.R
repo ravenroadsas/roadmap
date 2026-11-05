@@ -7,6 +7,7 @@ app_server <- function(input, output, session) {
   mod_overview_server("overview", ctx$data, model)
   mod_roadmap_server("roadmap", ctx$data, ctx$graph, model)
   mod_datamodel_server("model", ctx$data, ctx$cfg)
+  mod_glossary_server("glossary", ctx$data, model)
 }
 
 #' Data, graph and config, loaded once per R process and shared by sessions

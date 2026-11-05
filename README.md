@@ -12,6 +12,7 @@ Interactive roadmap that links **enablers** (investments) to **processes**, **KP
 | **Roadmap** | Timeline (Gantt by enabler group, with milestones and dependency arrows) or Value chain view (Infra → Data → People → Digital → Process → KPI). Click a KPI to highlight its direct enablers and the foundations they need, with allocated cost, value, NPV and ROI. Click an enabler to see what it requires and what it unlocks. |
 | **Sensitivity** | Sliders for the config assumptions. Shows the annual cost/value profile against the base case, an NPV tornado (each lever at low/high), and value by KPI. |
 | **Data model** | The proposed lightweight schema. |
+| **Glossary** | Definitions of every element (enabler, foundation, KPI, value, milestone and the computed terms), a concept diagram, and a live tree that follows any KPI from its foundations through its direct enablers to its value, with the cost allocated to it at each step. |
 
 Roadmap filters (process, process owner, enabler group, search) drive the timeline, value chain, KPI list and the headline figures above them. Everything is visible to every user.
 
@@ -64,6 +65,7 @@ R/
   fct_charts.R           sensitivity chart data (tested) + echarts4r rendering, summary strip
   fct_overview.R         overview tables and indicators (tested) + charts
   fct_timing.R           timing panel: dates, late dependencies, cost of acceleration
+  fct_glossary.R         glossary content and the foundation-to-value tree (layout tested, SVG)
   utils.R                formatting helpers
   mod_overview_*, mod_roadmap_*, mod_sensitivity_*, mod_datamodel_*  (ui / server per tab)
   app_ui.R, app_server.R, run_app.R
