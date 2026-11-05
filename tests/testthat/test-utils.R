@@ -6,20 +6,6 @@ test_that("formatting helpers", {
   expect_equal(fmt_num(4.1, "%"), "4.1%")
 })
 
-test_that("user access: management groups on Connect, open locally", {
-  withr::local_envvar(ROADMAP_LOCAL_PUBLIC_ONLY = "")
-  expect_true(user_access(NULL, NULL)$can_manage)
-  expect_false(user_access("ana", c("staff"), "exec,board")$can_manage)
-  expect_true(user_access("bob", c("staff", "board"), "exec,board")$can_manage)
-  expect_false(user_access("bob", "board", "")$can_manage)
-})
-
-test_that("public audience hides private KPIs", {
-  d <- tiny_data()
-  expect_equal(visible_kpis(d, "public"), "K1")
-  expect_equal(visible_kpis(d, "mgmt"), c("K1", "K2"))
-})
-
 test_that("selection parsing and sets", {
   expect_null(parse_selection(""))
   expect_null(parse_selection("bogus:1"))
@@ -31,14 +17,44 @@ test_that("selection parsing and sets", {
   expect_equal(s$kpi, "K1")
 })
 
-test_that("client payload applies filters and audience", {
+test_that("filters: process, owner and search narrow the KPIs", {
+  d <- tiny_data()
+  g <- build_graph(d)
+  all <- list(process = c("P1", "P2"), owner = c("Ops lead", "CFO"), group = GROUPS$id, query = "")
+  expect_equal(filtered_kpi_ids(d, g, all), c("K1", "K2"))
+  expect_false(filters_active(d, all))
+  expect_equal(filtered_kpi_ids(d, g, modifyList(all, list(owner = "CFO"))), "K2")
+  expect_equal(filtered_kpi_ids(d, g, modifyList(all, list(process = "P1", owner = "CFO"))), character(0))
+  expect_equal(filtered_kpi_ids(d, g, modifyList(all, list(query = "e2"))), "K1")   # via enabler name
+  expect_true(filters_active(d, modifyList(all, list(group = "infra"))))
+})
+
+test_that("client payload applies filters; all KPIs and milestones are sent", {
   d <- tiny_data()
   g <- build_graph(d)
   m <- run_model(d, g, tiny_cfg())
-  p <- viz_payload(d, m, "public", list(process = c("P1", "P2"), group = GROUPS$id, query = ""))
-  expect_equal(p$kpis$id, "K1")
+  f <- list(process = c("P1", "P2"), owner = c("Ops lead", "CFO"), group = GROUPS$id, query = "")
+  p <- viz_payload(d, m, f)
+  expect_equal(p$kpis$id, c("K1", "K2"))
   expect_true(all(p$enablers$show))
-  p <- viz_payload(d, m, "mgmt", list(process = "P2", group = GROUPS$id, query = ""))
+  expect_equal(nrow(p$milestones), 1)
+  p <- viz_payload(d, m, modifyList(f, list(owner = "CFO")))
   expect_equal(p$kpis$id[p$kpis$show], "K2")
   expect_equal(p$enablers$id[p$enablers$show], "E3")
+})
+
+test_that("top bar follows the filtered KPIs", {
+  d <- tiny_data()
+  g <- build_graph(d)
+  m <- run_model(d, g, tiny_cfg())
+  txt <- function(x) gsub("\\s+", " ", as.character(x))
+  full <- txt(summary_strip(d, m, c("K1", "K2")))
+  k2 <- txt(summary_strip(d, m, "K2", filtered = TRUE))
+  expect_match(full, fmt_musd(portfolio(m)$total_cost), fixed = TRUE)
+  expect_match(k2, fmt_musd(portfolio(m, "K2")$total_cost), fixed = TRUE)
+  expect_match(k2, "1 enablers", fixed = TRUE)
+  expect_match(k2, "filtered", fixed = TRUE)
+  expect_match(txt(summary_strip(d, m, character(0))), "No KPI matches", fixed = TRUE)
+  grp <- txt(summary_strip(d, m, c("K1", "K2"), groups = "infra"))
+  expect_match(grp, paste(fmt_musd(sum(m$cost["E1", ])), "in Infrastructure"), fixed = TRUE)
 })

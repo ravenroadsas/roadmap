@@ -44,18 +44,16 @@ kv <- function(labels, values) {
 }
 cls <- function(x, c) structure(x, cls = c)
 sign_cls <- function(x) if (isTRUE(x >= 0)) "pos" else "neg"
-vtag <- function(v) {
-  if (v == "private") tags$span(class = "vtag private", "MGMT ONLY") else tags$span(class = "vtag", "PUBLIC")
-}
 
 #' Detail panel for the selection (or the portfolio when nothing is selected)
 detail_ui <- function(data, model, sel, kpi_ids) {
   if (is.null(sel)) return(detail_portfolio(data, model, kpi_ids))
-  if (sel$type == "kpi" && !sel$id %in% kpi_ids) return(detail_portfolio(data, model, kpi_ids))
+  if (!length(kpi_ids)) kpi_ids <- data$kpi$id
+  all_k <- data$kpi$id                 # a selected item is always shown in full
   switch(sel$type,
-    kpi = detail_kpi(data, model, sel$id, kpi_ids),
-    enabler = detail_enabler(data, model, sel$id, kpi_ids),
-    process = detail_process(data, model, sel$id, kpi_ids)
+    kpi = detail_kpi(data, model, sel$id, all_k),
+    enabler = detail_enabler(data, model, sel$id, all_k),
+    process = detail_process(data, model, sel$id, all_k)
   )
 }
 
@@ -103,12 +101,12 @@ detail_kpi <- function(data, model, id, kpi_ids) {
   o <- order(!is_dir, -al[e$id])
   e <- e[o, ]
   is_dir <- is_dir[o]
-  ms_vis <- if (all(data$kpi$id %in% kpi_ids)) c("public", "private") else "public"
-  ms <- data$milestone[data$milestone$enabler_id %in% en & data$milestone$visibility %in% ms_vis, ]
+  ms <- data$milestone[data$milestone$enabler_id %in% en, ]
   driver <- c(oil_price = "oil price", fte_cost = "labour cost", none = "fixed")[k$value_driver]
   tagList(
     tags$div(tags$div(class = "eyebrow",
-                      data$process$name[data$process$id == k$process_id], " ", vtag(k$visibility)),
+                      data$process$name[data$process$id == k$process_id], " \u00b7 owner ",
+                      data$process$owner[data$process$id == k$process_id]),
              tags$h3(k$name)),
     kv(c("Baseline", paste("Target", k$target_year), "Ready"),
        list(fmt_num(k$baseline, k$unit), fmt_num(k$target, k$unit), time_to_q(ceiling(model$ready[[id]] * 4 - 1e-9) / 4 - 0.25))),

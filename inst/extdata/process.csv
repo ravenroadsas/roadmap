@@ -1,7 +1,7 @@
-id,name,owner,visibility
-P1,Production operations,VP Operations,public
-P2,Asset maintenance,Head of Maintenance,public
-P3,Drilling & well planning,Drilling Manager,public
-P4,Supply chain & procurement,CPO,public
-P5,HSE & compliance,HSE Director,public
-P6,Finance & reporting,CFO,public
+id,name,owner
+P1,Production operations,VP Operations
+P2,Asset maintenance,Head of Maintenance
+P3,Drilling & well planning,Drilling Manager
+P4,Supply chain & procurement,CPO
+P5,HSE & compliance,HSE Director
+P6,Finance & reporting,CFO

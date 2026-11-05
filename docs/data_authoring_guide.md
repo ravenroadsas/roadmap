@@ -46,8 +46,7 @@ All files are UTF-8 CSV with a header row and comma separators. Use a dot as the
 |---|---|---|
 | `id` | text | Given to you. Don't invent process IDs. |
 | `name` | text | Short name, e.g. `Asset maintenance` |
-| `owner` | text | Accountable **role**, never a person's name, e.g. `Head of Maintenance` |
-| `visibility` | `public` \| `private` | Almost always `public` |
+| `owner` | text | Accountable **role**, never a person's name, e.g. `Head of Maintenance`. The app filters by owner, so spell the same role the same way everywhere. |
 
 You normally output **no** process rows. Only output one if you were asked to create or rename the process.
 
@@ -75,7 +74,6 @@ Current processes:
 | `target_year` | integer | 2026–2030 |
 | `value_musd` | number | **Annual** value in **$ millions** when the target is reached, before any realisation haircut. Can be 0 for KPIs with no value (e.g. pure compliance KPIs), but then explain why in the notes. |
 | `value_driver` | text | A config key that scales the value: `oil_price`, `fte_cost`, or `none` (see 2.7) |
-| `visibility` | `public` \| `private` | See [section 4](#4-visibility-public-vs-private) |
 
 Rules:
 - Use 2 to 6 KPIs per process. Prefer outcome KPIs (turnaround, cost per unit, downtime, safety, throughput per employee) to activity KPIs (number of dashboards, users trained).
@@ -97,7 +95,6 @@ Rules:
 | `fte_internal` | number | Average internal people (FTE) working on the build: expertise or manpower that is **built or hired internally** |
 | `fte_partner` | number | Average FTE from **allies, vendors and contractors** during the build |
 | `scalability` | number 0–2 | How the duration responds to **more resources**: 0 rigid, 1 linear, >1 better than linear. See 2.3.1. |
-| `visibility` | `public` \| `private` | Usually `public` |
 
 Enabler groups and typical subcategories:
 
@@ -181,7 +178,6 @@ Rules:
 | `milestone_date` | text | `YYYY-MM` |
 | `name` | text | Observable outcome, max 50 characters, e.g. `Predictive maintenance on critical pumps` |
 | `enabler_id` | text | The enabler that delivers it |
-| `visibility` | `public` \| `private` | |
 
 Use 1 to 3 milestones per process. A milestone is something a manager can check happened, not a project phase like "design complete".
 
@@ -216,23 +212,7 @@ Infrastructure and data foundations (cloud, connectivity, data platform, master 
 
 ---
 
-## 4. Visibility: public vs private
-
-The dashboard has a public view and a management view. Rows with `visibility = private` are hidden from the public view.
-
-Mark a row **private** when it reveals:
-- headcount or FTE reduction, role elimination, or the redeployment of named teams
-- labour cost savings that could be read as job cuts
-- commercially sensitive targets: production quotas, unit costs, margins, working capital
-- anything about contract renegotiation or specific vendors
-
-Keep it **public** when it describes service, safety, speed, quality or environmental results, or the capabilities being built.
-
-When in doubt, choose `private` and explain why in the notes. For example, "barrels per employee" is usually public, but a KPI like "maintenance FTE per asset" is private.
-
----
-
-## 5. Output format
+## 4. Output format
 
 Reply with exactly these sections, in this order. Include only **new or changed rows**, never the whole database. Leave out a table section if it has no rows.
 
@@ -241,13 +221,13 @@ Reply with exactly these sections, in this order. Include only **new or changed 
 
 ## kpi.csv
 ```csv
-id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver,visibility
+id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver
 ...
 ```
 
 ## enabler.csv
 ```csv
-id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,scalability,visibility
+id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,scalability
 ...
 ```
 
@@ -265,7 +245,7 @@ enabler_id,requires_id
 
 ## milestone.csv
 ```csv
-id,milestone_date,name,enabler_id,visibility
+id,milestone_date,name,enabler_id
 ...
 ```
 
@@ -283,7 +263,7 @@ id,milestone_date,name,enabler_id,visibility
 
 ---
 
-## 6. Checklist before you answer
+## 5. Checklist before you answer
 
 - [ ] Every column is present, in order, with no extra columns. Numbers have no units, `$` signs or thousands separators.
 - [ ] Every `process_id`, `enabler_id`, `kpi_id` and `requires_id` points to a row in your output or in the catalogue you were given.
@@ -292,24 +272,23 @@ id,milestone_date,name,enabler_id,visibility
 - [ ] There are no dependency cycles. Date conflicts (a prerequisite ending later, or an end before the start) are allowed, but each one is explained under **Date conflicts**.
 - [ ] Every enabler has a `scalability`, and values outside the typical ranges or above 1 are explained.
 - [ ] `value_driver` is `oil_price`, `fte_cost` or `none`.
-- [ ] Sensitive rows are `private`.
 - [ ] Each digital enabler has a people or adoption enabler next to it.
 - [ ] Every number can be traced to a line in the notes.
 
 ---
 
-## 7. Worked example (Asset maintenance, excerpt)
+## 6. Worked example (Asset maintenance, excerpt)
 
 ```csv
-id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver,visibility
-K-P2-01,P2,Work-order turnaround,days,18,7,2028,6.4,fte_cost,public
-K-P2-02,P2,Maintenance cost per boe,$/boe,3.9,3.1,2029,11.2,none,private
+id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver
+K-P2-01,P2,Work-order turnaround,days,18,7,2028,6.4,fte_cost
+K-P2-02,P2,Maintenance cost per boe,$/boe,3.9,3.1,2029,11.2,none
 ```
 
 ```csv
-id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,scalability,visibility
-E-P2-01,digital,AI / ML,Predictive maintenance platform,2027Q1,2028Q2,6,1,3,5,0.7,public
-E-P2-02,people,Training & skills,Reliability engineers upskilling,2027Q2,2028Q2,0.3,0.05,1,1,0.4,public
+id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,scalability
+E-P2-01,digital,AI / ML,Predictive maintenance platform,2027Q1,2028Q2,6,1,3,5,0.7
+E-P2-02,people,Training & skills,Reliability engineers upskilling,2027Q2,2028Q2,0.3,0.05,1,1,0.4
 ```
 
 ```csv
@@ -326,12 +305,12 @@ E-P2-01,E-X-05
 ```
 
 ```csv
-id,milestone_date,name,enabler_id,visibility
-M-P2-01,2028-06,Predictive maintenance on critical equipment,E-P2-01,public
+id,milestone_date,name,enabler_id
+M-P2-01,2028-06,Predictive maintenance on critical equipment,E-P2-01
 ```
 
 Notes excerpt:
-- K-P2-02 value: (3.9 − 3.1) $/boe × 14 M boe/yr = $11.2M/yr. It is private because the saving comes partly from contractor reductions.
+- K-P2-02 value: (3.9 − 3.1) $/boe × 14 M boe/yr = $11.2M/yr.
 - E-P2-01 depends on the shared data platform (E-X-03) and OT/IoT integration (E-X-05) from the catalogue.
 - E-P2-01 scalability 0.7: model training can run in parallel per equipment class, but each model needs months of sensor history and field validation.
 - E-P2-02 scalability 0.4: more trainers help, but engineers can only absorb training alongside their shifts.

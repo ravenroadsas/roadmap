@@ -1,12 +1,12 @@
-id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver,visibility
-K1,P1,Barrels per employee,bbl/FTE·yr,9800,12500,2029,35.2,oil_price,public
-K2,P1,Unplanned production downtime,%,4.1,2.3,2029,25.6,oil_price,public
-K11,P1,Production target accomplishment,%,92,98,2029,16,oil_price,private
-K3,P2,Work-order turnaround,days,18,7,2028,6.4,fte_cost,public
-K4,P2,Maintenance cost per boe,$/boe,3.9,3.1,2029,11.2,none,private
-K5,P3,Well planning cycle time,days,45,20,2028,8,fte_cost,public
-K6,P3,Drilling non-productive time,%,14,9,2029,14.4,none,private
-K7,P4,Purchase-order cycle time,days,21,6,2027,3.2,fte_cost,public
-K8,P4,Inventory working capital,$M,180,140,2028,4.8,none,private
-K9,P5,Recordable injury rate (TRIR),per 200k h,0.42,0.25,2029,2.4,none,public
-K10,P6,Monthly close,days,9,4,2028,1.6,fte_cost,private
+id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver
+K1,P1,Barrels per employee,bbl/FTE·yr,9800,12500,2029,35.2,oil_price
+K2,P1,Unplanned production downtime,%,4.1,2.3,2029,25.6,oil_price
+K11,P1,Production target accomplishment,%,92,98,2029,16,oil_price
+K3,P2,Work-order turnaround,days,18,7,2028,6.4,fte_cost
+K4,P2,Maintenance cost per boe,$/boe,3.9,3.1,2029,11.2,none
+K5,P3,Well planning cycle time,days,45,20,2028,8,fte_cost
+K6,P3,Drilling non-productive time,%,14,9,2029,14.4,none
+K7,P4,Purchase-order cycle time,days,21,6,2027,3.2,fte_cost
+K8,P4,Inventory working capital,$M,180,140,2028,4.8,none
+K9,P5,Recordable injury rate (TRIR),per 200k h,0.42,0.25,2029,2.4,none
+K10,P6,Monthly close,days,9,4,2028,1.6,fte_cost

@@ -1,7 +1,7 @@
 #' Application UI
 #'
-#' Tabs follow the review sequence: see the roadmap, trace a KPI to its
-#' enablers, stress-test the assumptions, check the data model.
+#' Tabs follow the review sequence: overview of cost and value, the roadmap
+#' (trace a KPI to its enablers), stress-test the assumptions, check the data model.
 app_ui <- function(request) {
   ctx <- app_context()
   shiny::fluidPage(
@@ -17,10 +17,10 @@ app_ui <- function(request) {
         tags$div(class = "brand",
           tags$h1("Transformation Roadmap 2026\u201329"),
           tags$p("Enablers \u2192 processes \u2192 KPIs \u2192 value")),
-        shiny::uiOutput("audience_ui", inline = TRUE),
         tags$span(class = "user sp", shiny::textOutput("user", inline = TRUE)))),
     tags$main(class = "wrap", style = "padding-block:0 40px",
       shiny::tabsetPanel(id = "tab", type = "tabs",
+        shiny::tabPanel("Overview", value = "overview", mod_overview_ui("overview")),
         shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
         shiny::tabPanel("Sensitivity", value = "sensitivity", mod_sensitivity_ui("sens", ctx$cfg)),
         shiny::tabPanel("Data model", value = "model", mod_datamodel_ui("model"))))

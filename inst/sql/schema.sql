@@ -4,8 +4,7 @@
 CREATE TABLE IF NOT EXISTS process (
   id          VARCHAR PRIMARY KEY,
   name        VARCHAR NOT NULL,
-  owner       VARCHAR,
-  visibility  VARCHAR NOT NULL DEFAULT 'public'   -- public | private
+  owner       VARCHAR
 );
 
 CREATE TABLE IF NOT EXISTS kpi (
@@ -17,8 +16,7 @@ CREATE TABLE IF NOT EXISTS kpi (
   target        DOUBLE,
   target_year   INTEGER,
   value_musd    DOUBLE,                            -- annual value at full target, $M
-  value_driver  VARCHAR NOT NULL DEFAULT 'none',   -- config key that scales value, or 'none'
-  visibility    VARCHAR NOT NULL DEFAULT 'public'
+  value_driver  VARCHAR NOT NULL DEFAULT 'none'    -- config key that scales value, or 'none'
 );
 
 CREATE TABLE IF NOT EXISTS enabler (
@@ -32,8 +30,7 @@ CREATE TABLE IF NOT EXISTS enabler (
   opex_musd_yr   DOUBLE DEFAULT 0,
   fte_internal   DOUBLE DEFAULT 0,                 -- expertise / manpower built internally
   fte_partner    DOUBLE DEFAULT 0,                 -- allies and contractors
-  scalability    DOUBLE DEFAULT 0,                 -- duration response to extra resources: 0 rigid, 1 linear, >1 better than linear
-  visibility     VARCHAR NOT NULL DEFAULT 'public'
+  scalability    DOUBLE DEFAULT 0                  -- duration response to extra resources: 0 rigid, 1 linear, >1 better than linear
 );
 
 CREATE TABLE IF NOT EXISTS enabler_link (
@@ -53,6 +50,5 @@ CREATE TABLE IF NOT EXISTS milestone (
   id              VARCHAR PRIMARY KEY,
   milestone_date  VARCHAR NOT NULL,                -- YYYY-MM
   name            VARCHAR NOT NULL,
-  enabler_id      VARCHAR REFERENCES enabler(id),
-  visibility      VARCHAR NOT NULL DEFAULT 'public'
+  enabler_id      VARCHAR REFERENCES enabler(id)
 );

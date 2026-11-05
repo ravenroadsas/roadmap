@@ -8,23 +8,24 @@ Interactive roadmap that links **enablers** (investments) to **processes**, **KP
 
 | Tab | Purpose |
 |---|---|
+| **Overview** | Portfolio summary: headline figures, indicators (cost mix, share spent on foundations, peak spend and manpower, first value, date issues), value vs allocated cost per process with owner, cost per enabler split into capex / people / opex, value for money per enabler, spend per year by enabler group, internal vs partner manpower per year. |
 | **Roadmap** | Timeline (Gantt by enabler group, with milestones and dependency arrows) or Value chain view (Infra → Data → People → Digital → Process → KPI). Click a KPI to highlight its direct enablers and the foundations they need, with allocated cost, value, NPV and ROI. Click an enabler to see what it requires and what it unlocks. |
 | **Sensitivity** | Sliders for the config assumptions. Shows the annual cost/value profile against the base case, an NPV tornado (each lever at low/high), and value by KPI. |
 | **Data model** | The proposed lightweight schema. |
 
-There is a global **Public / Management** switch: `private` KPIs and milestones are hidden in Public mode.
+Roadmap filters (process, process owner, enabler group, search) drive the timeline, value chain, KPI list and the headline figures above them. Everything is visible to every user.
 
 ## Lightweight data model
 
 ```
-process        (id, name, owner, visibility)
+process        (id, name, owner)
 kpi            (id, process_id → process, name, unit, baseline, target, target_year,
-                value_musd, value_driver [oil_price|labor|none], visibility)
+                value_musd, value_driver [oil_price|labor|none])
 enabler        (id, group [people|digital|data|infra], subcategory, name, start_q, end_q,
-                capex_musd, opex_musd_yr, fte_internal, fte_partner, visibility)
+                capex_musd, opex_musd_yr, fte_internal, fte_partner)
 enabler_link   (enabler_id → enabler, kpi_id → kpi, weight)      -- enabler → KPI → process
 enabler_dependency (enabler_id → enabler, requires_id → enabler) -- DAG of prerequisites
-milestone      (id, date, name, enabler_id → enabler, visibility)
+milestone      (id, date, name, enabler_id → enabler)
 config (pin)   (key, value, min, max, low, high, unit)
 ```
 
@@ -51,8 +52,9 @@ R/
   fct_payload.R          data sent to the browser canvas
   fct_detail.R           detail panel (KPI / enabler / process / portfolio)
   fct_charts.R           sensitivity chart data (tested) + echarts4r rendering, summary strip
-  utils.R                formatting, Posit Connect user access, audience filter
-  mod_roadmap_ui/server.R, mod_sensitivity_ui/server.R, mod_datamodel_ui/server.R
+  fct_overview.R         overview tables and indicators (tested) + charts
+  utils.R                formatting helpers
+  mod_overview_*, mod_roadmap_*, mod_sensitivity_*, mod_datamodel_*  (ui / server per tab)
   app_ui.R, app_server.R, run_app.R
 inst/app/www/            styles.css, roadmap.js (timeline, value chain, highlighting, client-side)
 inst/extdata/            seed CSVs, one per table + config.csv
@@ -78,10 +80,8 @@ devtools::test()
 | `ROADMAP_DB_DRIVER` | `duckdb`, `sqlite` or `auto` | `auto` |
 | `ROADMAP_PINS_BOARD` | `connect` or `folder` to read config from a pin | CSV |
 | `ROADMAP_PINS_PATH` | folder for a folder board | |
-| `ROADMAP_MGMT_GROUPS` | Connect groups allowed to switch to the Management view (comma separated) | none |
-| `ROADMAP_LOCAL_PUBLIC_ONLY` | `true` to test the public-only view locally | |
 
-On Posit Connect, users outside `ROADMAP_MGMT_GROUPS` only see the Public view (no private KPIs or milestones). Locally, both views are available.
+On Posit Connect the signed-in user is shown in the header; there is no access split inside the app (control access with the Connect content settings).
 
 ### Performance
 

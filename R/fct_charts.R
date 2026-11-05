@@ -93,22 +93,39 @@ chart_ready <- function(df) {
     chart_theme()
 }
 
-#' Headline figures shared by the Roadmap and Sensitivity tabs
-summary_strip <- function(data, model, kpi_ids) {
+#' Headline figures (top bar)
+#'
+#' Follows the KPI set passed in: value comes from those KPIs, cost is the
+#' enabler cost allocated to them. When the enabler-group filter is partial,
+#' the investment card also shows the part spent in the selected groups.
+#' @param groups enabler groups selected in the filter.
+#' @param filtered TRUE when the left-panel filters narrow the portfolio.
+summary_strip <- function(data, model, kpi_ids, groups = GROUPS$id, filtered = FALSE) {
+  stat <- function(l, v, s) tags$div(class = "stat", tags$div(class = "l", l), tags$div(class = "v", v), tags$div(class = "s", s))
+  h <- model$cfg$horizon_end
+  if (!length(kpi_ids)) {
+    return(tags$div(class = "strip filtered",
+      stat("No KPI matches the filters", "\u2013", "change or reset the filters")))
+  }
   p <- portfolio(model, kpi_ids)
   share <- rowSums(model$graph$alloc[, kpi_ids, drop = FALSE])
   i <- match(names(share), data$enabler$id)
-  capex <- sum(data$enabler$capex_musd[i] * model$schedule$cost_factor[i] * share) *
-    (1 + model$cfg$capex_overrun)
-  h <- model$cfg$horizon_end
-  stat <- function(l, v, s) tags$div(class = "stat", tags$div(class = "l", l), tags$div(class = "v", v), tags$div(class = "s", s))
-  tags$div(class = "strip",
-    stat(paste("Investment to", h), fmt_musd(p$total_cost), paste("capex", fmt_musd(capex), "incl. overrun")),
+  capex <- sum(rowSums(model$cost_parts$capex)[names(share)] * share)
+  n_en <- sum(share > 1e-9)
+  inv_sub <- paste("capex", fmt_musd(capex), "incl. overrun")
+  if (length(groups) < nrow(GROUPS)) {
+    in_grp <- data$enabler$enabler_group[i] %in% groups
+    inv_sub <- sprintf("%s in %s", fmt_musd(sum(rowSums(model$cost)[names(share)][in_grp] * share[in_grp])),
+                       if (length(groups) == 1) GROUPS$name[GROUPS$id == groups]
+                       else sprintf("%d selected groups", length(groups)))
+  }
+  scope <- sprintf("%d enablers \u00b7 %d KPIs%s", n_en, length(kpi_ids), if (filtered) " \u00b7 filtered" else "")
+  tags$div(class = paste("strip", if (filtered) "filtered"),
+    stat(paste("Investment to", h), fmt_musd(p$total_cost), inv_sub),
     stat(paste("Value to", h), fmt_musd(p$total_value), "cumulative, realised"),
     stat("Run-rate value", paste0(fmt_musd(p$run_rate), "/yr"), "at full adoption"),
     stat(paste("NPV @", fmt_pct(model$cfg$discount_rate)), tags$span(class = sign_cls(p$npv), fmt_musd(p$npv)),
          paste0(model$start, "\u2013", h)),
     stat("ROI", tags$span(class = sign_cls(p$roi), fmt_pct(p$roi)), "(value \u2212 cost) / cost"),
-    stat("Payback", if (is.na(p$payback)) paste(">", h) else p$payback,
-         sprintf("%d enablers \u00b7 %d KPIs", nrow(data$enabler), length(kpi_ids))))
+    stat("Payback", if (is.na(p$payback)) paste(">", h) else p$payback, scope))
 }

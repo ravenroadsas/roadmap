@@ -1,6 +1,6 @@
 #' Sensitivity tab server
 #' @return reactive named list with the scenario parameter values.
-mod_sensitivity_server <- function(id, data, graph, cfg_table, audience) {
+mod_sensitivity_server <- function(id, data, graph, cfg_table) {
   moduleServer(id, function(input, output, session) {
     base <- config_values(cfg_table)
 
@@ -20,7 +20,7 @@ mod_sensitivity_server <- function(id, data, graph, cfg_table, audience) {
       }
     })
 
-    kpi_ids <- reactive(visible_kpis(data, audience()))
+    kpi_ids <- reactive(data$kpi$id)
     model <- reactive(run_model(data, graph, scenario(), base))
     base_model <- reactive({
       b <- base

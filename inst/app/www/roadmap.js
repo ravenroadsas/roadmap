@@ -36,7 +36,7 @@ function renderKpis(H){
   q('.rm-kcount').textContent=ks.length+' shown';
   box.innerHTML=ks.map(k=>{const cls=S.sel&&S.sel.type==='kpi'&&S.sel.id===k.id?'sel':H?(H.kpi.has(k.id)?'hl':'dim'):'';
     return `<button class="kcard ${cls}" data-sel="kpi:${k.id}"><span class="ktop"><span class="kn">${esc(k.name)}</span><span class="kv">${fmtM(k.run)}/yr</span></span>
-      <span class="km"><span>${esc(k.process_name)}</span>·<span class="mono">${fmtN(k.baseline,k.unit)} → ${fmtN(k.target,k.unit)}</span>${k.visibility==='private'?'<span class="vtag private">MGMT</span>':''}</span></button>`}).join('')||'<div class="fsec hint">No KPI matches the filters.</div>'}
+      <span class="km"><span>${esc(k.process_name)}</span>·<span class="mono">${fmtN(k.baseline,k.unit)} → ${fmtN(k.target,k.unit)}</span></span></button>`}).join('')||'<div class="fsec hint">No KPI matches the filters.</div>'}
 
 function legend(extra){q('.rm-legend').innerHTML=S.p.groups.map(g=>`<span><i class="dot ${g.id}"></i>${esc(g.name)}</span>`).join('')+extra}
 
@@ -47,7 +47,7 @@ function renderTimeline(H){
   const x=t=>L+(t-T0)/(T1-T0)*(W-L-R);const ens=p.enablers.filter(e=>e.show);
   let y=46;const pos={},body=[];const msY=y+4;
   p.milestones.forEach(mm=>{if(!EN[mm.enabler])return;const cls=H?(H.en.has(mm.enabler)?'on':'off'):'';const mx=x(mm.t);
-    body.push(`<g class="ms ${cls}" data-sel="enabler:${mm.enabler}" data-tip="<b>${esc(mm.id)} · ${esc(mm.name)}</b><br>${esc(mm.date)} · ${esc(EN[mm.enabler].name)}${mm.visibility==='private'?'<br>Management only':''}">
+    body.push(`<g class="ms ${cls}" data-sel="enabler:${mm.enabler}" data-tip="<b>${esc(mm.id)} · ${esc(mm.name)}</b><br>${esc(mm.date)} · ${esc(EN[mm.enabler].name)}">
       <path d="M${mx},${msY-6}L${mx+6},${msY}L${mx},${msY+6}L${mx-6},${msY}Z"/><text class="${H&&H.en.has(mm.enabler)?'t-ms':'t-q'}" x="${mx}" y="${msY+17}" text-anchor="middle">${esc(mm.id)}</text></g>`)});
   body.push(`<text class="t-grp" x="0" y="${msY+4}">Milestones</text>`);y+=34;
   p.groups.forEach(g=>{const rows=ens.filter(e=>e.grp===g.id);if(!rows.length)return;

@@ -40,28 +40,49 @@ schedule <- function(enabler, cfg) {
              stringsAsFactors = FALSE)
 }
 
-#' Yearly cost of each enabler
+#' Yearly cost of each enabler, split by type
 #'
-#' capex x (1 + overrun) x effort factor, spread evenly over the
-#' scenario build (start fixed, end per schedule()); people cost per year
-#' x resource multiplier during the build (partner FTE at a premium); opex
-#' from the scenario go-live to the horizon.
+#' * capex: capex x (1 + overrun) x effort factor, spread evenly over the
+#'   scenario build (start fixed, end per schedule())
+#' * people: internal and partner FTE (partner at a premium) x resource
+#'   multiplier, during the build
+#' * opex: from the scenario go-live to the horizon
 #' @param sched output of schedule(); computed from cfg when missing.
-#' @return matrix enabler x year.
-cost_profile <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
+#' @return list of three matrices (enabler x year): capex, people, opex.
+cost_parts <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
   s <- sched$start
   f <- sched$end
   horizon <- max(years) + 1
   people <- (enabler$fte_internal * cfg$fte_cost +
              enabler$fte_partner * cfg$fte_cost * (1 + cfg$partner_premium)) / 1000 *
     sched$people_factor
-  out <- vapply(years, function(y) {
-    build <- overlap(s, f, y)
-    enabler$capex_musd * (1 + cfg$capex_overrun) * sched$cost_factor * build / sched$duration +
-      people * build +
-      enabler$opex_musd_yr * overlap(f, horizon, y)
-  }, numeric(nrow(enabler)))
-  matrix(out, nrow = nrow(enabler), dimnames = list(enabler$id, years))
+  capex <- enabler$capex_musd * (1 + cfg$capex_overrun) * sched$cost_factor / sched$duration
+  mk <- function(f_year) {
+    matrix(vapply(years, f_year, numeric(nrow(enabler))), nrow = nrow(enabler),
+           dimnames = list(enabler$id, years))
+  }
+  list(
+    capex = mk(function(y) capex * overlap(s, f, y)),
+    people = mk(function(y) people * overlap(s, f, y)),
+    opex = mk(function(y) enabler$opex_musd_yr * overlap(f, horizon, y))
+  )
+}
+
+#' Yearly cost of each enabler (sum of cost_parts())
+#' @return matrix enabler x year.
+cost_profile <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
+  p <- cost_parts(enabler, cfg, years, sched)
+  p$capex + p$people + p$opex
+}
+
+#' Average FTE working on enabler builds per year (scenario resources)
+#' @return data frame year, internal, partner.
+fte_profile <- function(enabler, years, sched) {
+  b <- vapply(years, function(y) overlap(sched$start, sched$end, y), numeric(nrow(enabler)))
+  b <- matrix(b, nrow = nrow(enabler))
+  data.frame(year = years,
+             internal = colSums(b * enabler$fte_internal * sched$people_factor),
+             partner = colSums(b * enabler$fte_partner * sched$people_factor))
 }
 
 #' KPI ready date: latest scenario end across its enabler chain
@@ -108,7 +129,8 @@ run_model <- function(data, graph, cfg, base = cfg) {
   years <- seq(start, cfg$horizon_end)
   sched <- schedule(data$enabler, cfg)
   ready <- kpi_ready(graph, sched)
-  cost <- cost_profile(data$enabler, cfg, years, sched)
+  parts <- cost_parts(data$enabler, cfg, years, sched)
+  cost <- parts$capex + parts$people + parts$opex
   plan_cfg <- cfg
   plan_cfg$resource_multiplier <- 1
   plan_cost <- cost_profile(data$enabler, plan_cfg, years)
@@ -116,7 +138,7 @@ run_model <- function(data, graph, cfg, base = cfg) {
   list(
     cfg = cfg, years = years, start = start,
     schedule = sched, ready = ready,
-    cost = cost, plan_cost = plan_cost, value = value,
+    cost = cost, cost_parts = parts, plan_cost = plan_cost, value = value,
     run_rate = attr(value, "run_rate"),
     discount = 1 / (1 + cfg$discount_rate)^(years - start),
     graph = graph
