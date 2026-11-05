@@ -1,6 +1,6 @@
 # All data interaction lives in this file.
-# Input: an Excel workbook with one sheet per table (ROADMAP_INPUT_XLSX,
-# default inst/extdata/roadmap_input.xlsx). It is the source of truth: at
+# Input: an Excel workbook with one sheet per table plus a 'config' sheet
+# (ROADMAP_INPUT_XLSX, default inst/extdata/roadmap_input.xlsx). It is the source of truth: at
 # startup it is validated and loaded into the database, replacing its content.
 # Development: DuckDB (file or in-memory).
 # Enterprise: swap db_connect() for an odbc / RPostgres connection; the rest
@@ -242,13 +242,27 @@ read_input_excel <- function(path = input_path()) {
   out
 }
 
+#' Read the 'config' sheet of the input workbook (raw; see config_clean())
+read_config_excel <- function(path = input_path()) {
+  if (!file.exists(path)) stop("Input workbook not found: ", path)
+  if (!"config" %in% readxl::excel_sheets(path)) {
+    stop("Problems in ", basename(path), ":\n- sheet 'config' is missing", call. = FALSE)
+  }
+  df <- as.data.frame(readxl::read_excel(path, sheet = "config", col_types = "list", .name_repair = "minimal"))
+  df[] <- lapply(df, function(col) vapply(col, function(v)
+    if (is.null(v) || length(v) == 0) NA_character_ else as.character(v), ""))
+  df
+}
+
 #' Write roadmap tables to a workbook in the input format
 #'
 #' Use it to give the current catalogue to the authoring agent, or to
 #' start a new input file. Adds a 'README' sheet describing every column.
 #' @param data list of tables (db_read_all() / load_roadmap_data()), or
 #'   NULL for an empty template.
-write_input_excel <- function(path, data = NULL) {
+#' @param config config table written to the 'config' sheet (defaults to
+#'   the one in the current input workbook).
+write_input_excel <- function(path, data = NULL, config = config_read(board_type = "")) {
   sheets <- lapply(stats::setNames(ROADMAP_TABLES, ROADMAP_TABLES), function(t) {
     cols <- names(INPUT_SPEC[[t]])
     if (is.null(data)) {
@@ -267,7 +281,20 @@ write_input_excel <- function(path, data = NULL) {
                default = vapply(sp, function(x) if (is.na(x[[3]])) "" else as.character(x[[3]]), ""),
                description = vapply(sp, function(x) x[[4]], ""), stringsAsFactors = FALSE)
   }))
-  writexl::write_xlsx(c(list(README = readme), sheets), path)
+  readme <- rbind(readme, data.frame(
+    sheet = "config",
+    column = CONFIG_COLUMNS,
+    type = c("text", "text", "text", rep("number", 6), "TRUE/FALSE", "TRUE/FALSE", "text"),
+    required = c("yes", "yes", "no", "yes", "yes", "yes", "yes", "no", "no", "no", "no", "no"),
+    default = c("", "", "", "", "", "", "", "", "", "FALSE", "FALSE", ""),
+    description = c("Parameter name used by the model (do not rename)", "Label in the app",
+                    "Unit shown next to the value", "Base-case value", "Slider minimum",
+                    "Slider maximum", "Slider step", "Low value for the NPV tornado",
+                    "High value for the NPV tornado", "Show as a percentage (0.15 -> 15%)",
+                    "Include in the NPV tornado", "Help text under the slider"),
+    stringsAsFactors = FALSE))
+  cfg <- config[, CONFIG_COLUMNS]
+  writexl::write_xlsx(c(list(README = readme), sheets, list(config = cfg)), path)
   invisible(path)
 }
 

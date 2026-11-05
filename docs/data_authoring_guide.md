@@ -38,7 +38,7 @@ The dashboard calculates the following. You don't compute any of it, but your nu
 
 ## 2. Tables and field rules
 
-The roadmap data lives in one **Excel workbook** (`roadmap_input.xlsx`) with **one sheet per table**. Each sheet is named exactly like the table (`process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`), and the column names are in row 1. A `README` sheet describes every column. The app reads the workbook at startup and stops with a list of problems (sheet, column, row) if anything is wrong.
+The roadmap data lives in one **Excel workbook** (`roadmap_input.xlsx`) with **one sheet per table**. Each sheet is named exactly like the table (`process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`), and the column names are in row 1. A `config` sheet holds the scenario assumptions; it's maintained by the roadmap team, so never output rows for it. A `README` sheet describes every column. The app reads the workbook at startup and stops with a list of problems (sheet, column, row) if anything is wrong.
 
 Rules for every sheet:
 - Use exactly the column names listed below, in lower case. Column order doesn't matter. Extra columns are ignored, so don't put information there that should be in the notes.
@@ -188,9 +188,9 @@ Rules:
 
 Use 1 to 3 milestones per process. A milestone is something a manager can check happened, not a project phase like "design complete".
 
-### 2.7 `config` (read only)
+### 2.7 `config` sheet (read only)
 
-Agents don't change the config. Use only these keys as `value_driver`:
+You don't change the config sheet. Use only these keys as `value_driver`:
 
 | key | meaning | use as driver when the value… |
 |---|---|---|

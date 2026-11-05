@@ -81,3 +81,44 @@ test_that("date conflicts do not block the import", {
   expect_silent(x <- read_input_excel(xlsx_from(tabs)))
   expect_equal(nrow(date_issues(x)), 1)
 })
+
+test_that("config comes from the workbook's config sheet", {
+  ct <- config_read(board_type = "")
+  expect_true(all(CONFIG_REQUIRED %in% ct$key))
+  expect_type(ct$value, "double")
+  expect_type(ct$is_pct, "logical")
+  expect_equal(readxl::excel_sheets(input_path())[8], "config")
+})
+
+test_that("exported workbook carries the config and reads back the same", {
+  skip_if_not_installed("writexl")
+  ct <- config_read(board_type = "")
+  f <- tempfile(fileext = ".xlsx")
+  write_input_excel(f, tiny_tables(), ct)
+  expect_equal(config_read(board_type = "", input = f), ct)
+  readme <- readxl::read_excel(f, "README")
+  expect_true("config" %in% readme$sheet)
+})
+
+test_that("config problems are reported together", {
+  skip_if_not_installed("writexl")
+  ct <- config_read(board_type = "")
+  ct$value[ct$key == "oil_price"] <- 500                     # outside min-max
+  ct <- ct[ct$key != "discount_rate", ]                       # required key missing
+  ct$is_pct <- as.character(ct$is_pct)
+  ct$is_pct[ct$key == "fte_cost"] <- "maybe"                  # not TRUE/FALSE
+  ct$in_sensitivity <- ifelse(ct$in_sensitivity, "yes", "no") # yes/no is accepted
+  f <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(list(config = ct), f)
+  err <- tryCatch(config_read(board_type = "", input = f), error = conditionMessage)
+  expect_match(err, "key 'fte_cost', column 'is_pct': 'maybe' is not TRUE/FALSE", fixed = TRUE)
+  expect_match(err, "missing key(s): discount_rate", fixed = TRUE)
+  ct$is_pct[ct$key == "fte_cost"] <- "FALSE"
+  ct <- rbind(ct, config_read(board_type = "")[config_read(board_type = "")$key == "discount_rate", ])
+  writexl::write_xlsx(list(config = ct), f)
+  err <- tryCatch(config_read(board_type = "", input = f), error = conditionMessage)
+  expect_match(err, "key 'oil_price': value 500 is outside min-max (45-110)", fixed = TRUE)
+  f2 <- tempfile(fileext = ".xlsx")
+  writexl::write_xlsx(list(process = data.frame(id = "P1")), f2)
+  expect_error(config_read(board_type = "", input = f2), "sheet 'config' is missing", fixed = TRUE)
+})

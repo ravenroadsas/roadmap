@@ -26,14 +26,14 @@ enabler        (id, group [people|digital|data|infra], subcategory, name, start_
 enabler_link   (enabler_id → enabler, kpi_id → kpi, weight)      -- enabler → KPI → process
 enabler_dependency (enabler_id → enabler, requires_id → enabler) -- DAG of prerequisites
 milestone      (id, date, name, enabler_id → enabler)
-config (pin)   (key, value, min, max, low, high, unit)
+config         (key, label, unit, value, min, max, step, low, high, is_pct, in_sensitivity, description)
 ```
 
 The three resource types map to columns: money (`capex`, `opex`), manpower and expertise (`fte_internal` for capability built or hired internally, `fte_partner` for allies and contractors).
 
 ## Input workbook
 
-All roadmap data comes from one Excel file with one sheet per table: `process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`. Column names go in row 1 and column order doesn't matter. A `README` sheet lists every column with its type, whether it's required, and its default. The scenario assumptions stay in `config.csv`, or on a pin.
+All roadmap data comes from one Excel file with one sheet per table: `process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`. Column names go in row 1 and column order doesn't matter. A `config` sheet holds the scenario assumptions: base value, slider range and step, low and high for the tornado, % formatting, and whether each one is used in the tornado. A `README` sheet lists every column with its type, whether it's required, and its default. On Posit Connect, a pin can override the config sheet.
 
 - At startup the workbook is validated and loaded into the database, replacing what was there, so the workbook is the source of truth. To reload it, edit it and restart the app.
 - Problems stop the app with one message that lists them all, by sheet, column and row: missing sheets or columns, values that aren't numbers, quarters or months, duplicate IDs, unknown references, dependency cycles. Date conflicts are not errors; they are shown in red.
@@ -56,7 +56,7 @@ All roadmap data comes from one Excel file with one sheet per table: `process`, 
 ```
 R/
   data_access.R          all data interaction: Excel input (read, validate, export) and DB (DuckDB in dev, RSQLite fallback, DBI for SQL Server/Postgres later)
-  config.R               config from a pin (ROADMAP_PINS_BOARD) or inst/extdata/config.csv
+  config.R               config from the workbook's config sheet (or a pin on Posit Connect), validated
   fct_graph.R            dependency graph, validation, weights, cost allocation, ready dates
   fct_model.R            cost_profile(), value_profile(), run_model(), portfolio(), tornado()
   fct_payload.R          data sent to the browser canvas
@@ -68,7 +68,7 @@ R/
   mod_overview_*, mod_roadmap_*, mod_sensitivity_*, mod_datamodel_*  (ui / server per tab)
   app_ui.R, app_server.R, run_app.R
 inst/app/www/            styles.css, roadmap.js (timeline, value chain, highlighting, client-side)
-inst/extdata/            roadmap_input.xlsx (sample data, one sheet per table), roadmap_input_template.xlsx, config.csv
+inst/extdata/            roadmap_input.xlsx (sample data: one sheet per table + config), roadmap_input_template.xlsx
 inst/sql/schema.sql      DDL
 tests/testthat/          unit tests for every function layer
 docs/data_authoring_guide.md  how AI agents must format per-process data
@@ -90,7 +90,7 @@ devtools::test()
 | `ROADMAP_INPUT_XLSX` | Input workbook, one sheet per table | `inst/extdata/roadmap_input.xlsx` |
 | `ROADMAP_DB_PATH` | DuckDB file (reloaded from the workbook at every start) | in-memory |
 | `ROADMAP_DB_DRIVER` | `duckdb`, `sqlite` or `auto` | `auto` |
-| `ROADMAP_PINS_BOARD` | `connect` or `folder` to read config from a pin | CSV |
+| `ROADMAP_PINS_BOARD` | `connect` or `folder` to read the config from a pin instead of the config sheet | config sheet |
 | `ROADMAP_PINS_PATH` | folder for a folder board | |
 
 On Posit Connect the signed-in user is shown in the header; there is no access split inside the app (control access with the Connect content settings).

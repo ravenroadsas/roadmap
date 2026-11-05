@@ -16,7 +16,7 @@ mod_datamodel_server <- function(id, data, cfg_table) {
     output$source <- shiny::renderUI({
       tags$div(class = "callout source",
         tags$b("Input workbook: "), tags$code(basename(src$path)),
-        sprintf(" \u00b7 last modified %s \u00b7 one sheet per table below (a README sheet describes every column). ",
+        sprintf(" \u00b7 last modified %s \u00b7 one sheet per table below plus a config sheet (a README sheet describes every column). ",
                 format(src$modified, "%Y-%m-%d %H:%M")),
         "Edit the workbook and restart the app to reload it. ",
         shiny::downloadLink(session$ns("download"), "Download the current data as Excel"), " \u00b7 ",
@@ -24,10 +24,10 @@ mod_datamodel_server <- function(id, data, cfg_table) {
     })
     output$download <- shiny::downloadHandler(
       filename = function() sprintf("roadmap_input_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
-      content = function(file) write_input_excel(file, data))
+      content = function(file) write_input_excel(file, data, cfg_table))
     output$template <- shiny::downloadHandler(
       filename = "roadmap_input_template.xlsx",
-      content = function(file) write_input_excel(file))
+      content = function(file) write_input_excel(file, NULL, cfg_table))
     output$schema <- shiny::renderUI({
       cards <- lapply(names(info), function(t) {
         tags$div(class = "box",
@@ -36,8 +36,8 @@ mod_datamodel_server <- function(id, data, cfg_table) {
           tags$table(class = "t", tags$tbody(lapply(info[[t]]$fields, function(f) tags$tr(tags$td(tags$code(f)))))))
       })
       cfg_card <- tags$div(class = "box",
-        tags$div(class = "bh", tags$h2(class = "tname", "config (pin)"), tags$span(class = "sp hint", nrow(cfg_table), " rows")),
-        tags$p("Scenario assumptions. Read from a pin on Posit Connect, CSV in development."),
+        tags$div(class = "bh", tags$h2(class = "tname", "config"), tags$span(class = "sp hint", nrow(cfg_table), " rows")),
+        tags$p("Scenario assumptions: base value, slider range and tornado low / high. Sheet ", tags$code("config"), " of the input workbook (a pin can override it on Posit Connect)."),
         tags$table(class = "t", tags$tbody(lapply(seq_len(nrow(cfg_table)), function(i) tags$tr(
           tags$td(tags$code(cfg_table$key[i])), tags$td(class = "hint", cfg_table$label[i]),
           tags$td(class = "r", fmt_cfg(cfg_table[i, ])))))))
