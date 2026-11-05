@@ -68,13 +68,13 @@ viz_payload <- function(data, model, filters, ns_prefix = "") {
       start = e$start_q, end = e$end_q,
       t0 = q_to_time(e$start_q), t1 = model$schedule$end, t1_plan = q_to_time(e$end_q, TRUE),
       compression = round(model$schedule$compression, 3),
-      issue = vapply(e$id, function(i) paste(g$issues$message[g$issues$enabler_id == i], collapse = "; "), ""),
+      issue = vapply(e$id, function(i) paste(model$issues$message[model$issues$enabler_id == i], collapse = "; "), ""),
       capex = round(e$capex_musd * (1 + model$cfg$capex_overrun) * model$schedule$cost_factor, 2),
       opex = e$opex_musd_yr, fte_int = e$fte_internal, fte_ext = e$fte_partner,
       show = e_show, stringsAsFactors = FALSE
     ),
     prereq = g$prereq,
-    issues = g$issues,
+    issues = model$issues,
     processes = data.frame(id = data$process$id, name = data$process$name,
                            show = data$process$id %in% k$process_id[k_show]),
     kpis = data.frame(
@@ -88,7 +88,7 @@ viz_payload <- function(data, model, filters, ns_prefix = "") {
                        kpi = data$enabler_link$kpi_id,
                        weight = data$enabler_link$weight),
     milestones = data.frame(id = ms$id, date = ms$milestone_date, name = ms$name,
-                            enabler = ms$enabler_id, t = month_to_time(ms$milestone_date),
+                            enabler = ms$enabler_id, t = model$milestones$t, t_plan = model$milestones$t_plan,
                             stringsAsFactors = FALSE)
   )
 }

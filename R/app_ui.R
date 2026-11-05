@@ -22,7 +22,7 @@ app_ui <- function(request) {
       shiny::tabsetPanel(id = "tab", type = "tabs",
         shiny::tabPanel("Overview", value = "overview", mod_overview_ui("overview")),
         shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
-        shiny::tabPanel("Sensitivity", value = "sensitivity", mod_sensitivity_ui("sens", ctx$cfg)),
+        shiny::tabPanel("Sensitivity", value = "sensitivity", mod_sensitivity_ui("sens", ctx$cfg, ctx$data)),
         shiny::tabPanel("Data model", value = "model", mod_datamodel_ui("model"))))
   )
 }

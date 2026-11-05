@@ -47,7 +47,7 @@ function renderTimeline(H){
   const x=t=>L+(t-T0)/(T1-T0)*(W-L-R);const ens=p.enablers.filter(e=>e.show);
   let y=46;const pos={},body=[];const msY=y+4;
   p.milestones.forEach(mm=>{if(!EN[mm.enabler])return;const cls=H?(H.en.has(mm.enabler)?'on':'off'):'';const mx=x(mm.t);
-    body.push(`<g class="ms ${cls}" data-sel="enabler:${mm.enabler}" data-tip="<b>${esc(mm.id)} · ${esc(mm.name)}</b><br>${esc(mm.date)} · ${esc(EN[mm.enabler].name)}">
+    body.push(`<g class="ms ${cls}" data-sel="enabler:${mm.enabler}" data-tip="<b>${esc(mm.id)} · ${esc(mm.name)}</b><br>${esc(mm.date)}${Math.abs(mm.t-mm.t_plan)>0.02?' → moved to '+(Math.floor(mm.t))+'-'+String(Math.min(12,Math.floor((mm.t%1)*12)+1)).padStart(2,'0'):''} · ${esc(EN[mm.enabler].name)}">
       <path d="M${mx},${msY-6}L${mx+6},${msY}L${mx},${msY+6}L${mx-6},${msY}Z"/><text class="${H&&H.en.has(mm.enabler)?'t-ms':'t-q'}" x="${mx}" y="${msY+17}" text-anchor="middle">${esc(mm.id)}</text></g>`)});
   body.push(`<text class="t-grp" x="0" y="${msY+4}">Milestones</text>`);y+=34;
   p.groups.forEach(g=>{const rows=ens.filter(e=>e.grp===g.id);if(!rows.length)return;
@@ -107,7 +107,7 @@ function renderChain(H){
 
 function render(){
   if(!S.p||!root())return;const H=highlight();renderKpis(H);
-  const ni=arr(S.p.issues).length,bi=q('.rm-issues');if(bi)bi.textContent=ni?`⚠ ${ni} date issue${ni>1?'s':''}`:'';
+  const IL=arr(S.p.issues),nl=IL.filter(i=>i.type==='prereq_ends_later').length,nb=IL.length-nl,bi=q('.rm-issues');if(bi)bi.textContent=IL.length?'⚠ '+[nl?`${nl} late dependenc${nl>1?'ies':'y'}`:'',nb?`${nb} date error${nb>1?'s':''}`:''].filter(Boolean).join(', '):'';
   root().querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===S.view));
   (S.view==='timeline'?renderTimeline:renderChain)(H)}
 

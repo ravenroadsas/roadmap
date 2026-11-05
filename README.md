@@ -43,6 +43,8 @@ All roadmap data comes from one Excel file with one sheet per table: `process`, 
 
 - **Enabler cost / year** = capex × (1 + overrun), spread over the enabler's (scenario) duration + FTE cost during the build (partner FTE × (1 + partner premium)) + opex from go-live to the horizon.
 - **Extra resources**: the scenario lever `resource_multiplier` (r, 1 = plan) puts more resources on every enabler. Each enabler's `scalability` (s) sets the response: duration × r^(−s), with the start date fixed. s = 0 is rigid (no resources added, no change), s = 1 is linear (half the time at the same total cost), s < 1 gives diminishing returns (total cost rises as r^(1−s)), and s > 1 is better than linear (total cost falls). The same capex and people effort are spread over the shorter build, so yearly expenditure is recalculated. Opex starts at the new go-live. The enabler detail panel shows plan vs scenario spend per year.
+- **Time target** (Sensitivity → Time): instead of one multiplier for every enabler, choose a target quarter for the last milestone (or for every enabler) and the app back-calculates the resources each enabler needs. Start dates are fixed and a duration depends only on its own resources, so the multiplier has a closed form, r = k^(−1/s), where k is the share of the plan duration allowed. Only enablers that would miss the target get extra resources. With "bring prerequisites forward", their prerequisites are accelerated too, so none goes live after its dependent. Enablers that can't make it (rigid, starting after the target, needing less than a quarter, or above the resource limit) are listed. The panel shows the dates, the extra investment, the change in value and NPV, and each accelerated enabler. Milestones keep their relative position inside a shortened build.
+- **Late dependencies** (red arrows: a prerequisite going live after the enabler that needs it) are counted on the scenario schedule, not just the plan. The count appears on the timeline, the detail panel, the Overview and the timing panel.
 - **KPI ready date** = latest (scenario) end date across its direct enablers and all their prerequisites.
 - **Date issues** (an end before the start, or a prerequisite going live after the enabler that needs it) don't block loading. They're shown in red on the timeline, value chain and detail panel. Missing references and dependency cycles still stop the app at startup.
 - **KPI value / year** = `value_musd` × realisation × driver factor (oil price / base or FTE cost / base) × adoption ramp (starts after the adoption lag, linear over the ramp years).
@@ -61,6 +63,7 @@ R/
   fct_detail.R           detail panel (KPI / enabler / process / portfolio)
   fct_charts.R           sensitivity chart data (tested) + echarts4r rendering, summary strip
   fct_overview.R         overview tables and indicators (tested) + charts
+  fct_timing.R           timing panel: dates, late dependencies, cost of acceleration
   utils.R                formatting helpers
   mod_overview_*, mod_roadmap_*, mod_sensitivity_*, mod_datamodel_*  (ui / server per tab)
   app_ui.R, app_server.R, run_app.R

@@ -71,7 +71,9 @@ overview_stats <- function(data, model) {
     roadmap_end = max(model$schedule$end),
     n_process = nrow(data$process), n_kpi = nrow(data$kpi),
     n_enabler = nrow(data$enabler), n_milestone = nrow(data$milestone),
-    n_issues = nrow(model$graph$issues)
+    n_issues = nrow(model$issues),
+    n_late = sum(model$issues$type == "prereq_ends_later"),
+    last_milestone = if (nrow(model$milestones)) max(model$milestones$t) else NA_real_
   )
 }
 

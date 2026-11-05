@@ -9,9 +9,9 @@ flow_data <- function(model, base_model, kpi_ids) {
              cum_net = round(p$cum_net, 2), base_cum_net = round(b$cum_net, 2))
 }
 
-tornado_data <- function(data, graph, cfg, base, cfg_table, kpi_ids) {
-  t <- tornado(data, graph, cfg, base, cfg_table, kpi_ids)
-  npv <- portfolio(run_model(data, graph, cfg, base), kpi_ids)$npv
+tornado_data <- function(data, graph, cfg, base, cfg_table, kpi_ids, resources = NULL) {
+  t <- tornado(data, graph, cfg, base, cfg_table, kpi_ids, resources)
+  npv <- portfolio(run_model(data, graph, cfg, base, resources), kpi_ids)$npv
   rows <- match(t$key, cfg_table$key)
   t$lever <- sprintf("%s (%s \u2192 %s)", t$label,
                      vapply(rows, function(i) fmt_cfg(cfg_table[i, ], cfg_table$low[i]), ""),

@@ -23,7 +23,8 @@ mod_overview_server <- function(id, data, model) {
             sprintf("roadmap complete %s", time_to_q(ceiling(s$roadmap_end * 4 - 1e-9) / 4 - 0.25))),
         ind("Scope", sprintf("%d \u00b7 %d \u00b7 %d", s$n_process, s$n_kpi, s$n_enabler),
             sprintf("processes \u00b7 KPIs \u00b7 enablers \u00b7 %d milestones", s$n_milestone)),
-        ind("Date issues", s$n_issues, if (s$n_issues) "see Roadmap tab" else "plan dates consistent",
+        ind("Late dependencies", s$n_late,
+            if (s$n_issues) paste(issue_count_label(model()$issues), "\u00b7 red on the timeline") else "all prerequisites on time",
             if (s$n_issues) "bad" else ""))
     })
 

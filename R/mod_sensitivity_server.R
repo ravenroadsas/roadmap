@@ -21,7 +21,21 @@ mod_sensitivity_server <- function(id, data, graph, cfg_table) {
     })
 
     kpi_ids <- reactive(data$kpi$id)
-    model <- reactive(run_model(data, graph, scenario(), base))
+
+    # time target: per-enabler resources back-calculated from the target date
+    solved <- reactive({
+      if (!identical(input$res_mode, "target") || is.null(input$target_q)) return(NULL)
+      solve_target(data, scenario(), as.numeric(input$target_q),
+                   scope = input$target_scope %||% "milestones",
+                   pull_prereqs = isTRUE(input$pull_prereqs),
+                   r_max = max(cfg_table$max[cfg_table$key == "resource_multiplier"], 1))
+    })
+    resources <- reactive(if (is.null(solved())) NULL else solved()$resources)
+    model <- reactive(run_model(data, graph, scenario(), base, resources()))
+    # same assumptions without any acceleration, to price the time saved
+    plan_model <- reactive(run_model(data, graph,
+      utils::modifyList(scenario(), list(resource_multiplier = 1)), base))
+    output$timing <- shiny::renderUI(timing_ui(data, model(), plan_model(), solved()))
     base_model <- reactive({
       b <- base
       b$horizon_end <- scenario()$horizon_end
@@ -34,7 +48,7 @@ mod_sensitivity_server <- function(id, data, graph, cfg_table) {
       chart_flow(flow_data(model(), base_model(), kpi_ids()))
     })
     output$tornado <- echarts4r::renderEcharts4r({
-      chart_tornado(tornado_data(data, graph, scenario(), base, cfg_table, kpi_ids()))
+      chart_tornado(tornado_data(data, graph, scenario(), base, cfg_table, kpi_ids(), resources()))
     })
     output$ready <- echarts4r::renderEcharts4r({
       chart_ready(ready_data(data, model(), base_model(), kpi_ids()))

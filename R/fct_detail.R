@@ -68,7 +68,7 @@ detail_portfolio <- function(data, model, kpi_ids) {
   tagList(
     tags$div(tags$div(class = "eyebrow", sprintf("Value to %s", model$cfg$horizon_end)),
              tags$h3("Select a KPI to trace what makes it possible")),
-    issues_ui(model$graph$issues),
+    issues_ui(model$issues),
     tags$div(class = "callout",
       "Click a ", tags$b("KPI"), " to highlight its direct enablers and the foundations under them. ",
       "Click an ", tags$b("enabler"), " to see what it unlocks. Figures follow the Sensitivity tab."),
@@ -113,7 +113,7 @@ detail_kpi <- function(data, model, id, kpi_ids) {
     kv(c("Run-rate", paste("Value to", model$cfg$horizon_end), "NPV"),
        list(cls(paste0(fmt_musd(p$run_rate), "/yr"), "pos"), fmt_musd(p$total_value),
             cls(fmt_musd(p$npv), sign_cls(p$npv)))),
-    issues_ui(model$graph$issues[model$graph$issues$enabler_id %in% en, ]),
+    issues_ui(model$issues[model$issues$enabler_id %in% en, ]),
     tags$div(class = "callout",
       tags$b(length(ch$direct), " direct enablers"), " rely on ", tags$b(length(ch$foundation), " foundations"),
       sprintf(". Allocated cost %s (ROI %s). Building the whole chain for this KPI alone would cost %s. Value driver: %s.",
@@ -158,7 +158,7 @@ detail_enabler <- function(data, model, id, kpi_ids) {
     kv(c("Manpower", "People cost", paste("Cost to", cfg$horizon_end)),
        list(sprintf("%s int \u00b7 %s ext", e$fte_internal, e$fte_partner), paste0(fmt_musd(people), "/yr"),
             cls(fmt_musd(sum(model$cost[id, ])), "neg"))),
-    enabler_issue_ui(g$issues, id),
+    enabler_issue_ui(model$issues, id),
     kv(c("Scalability", "Scenario end", "Build cost vs plan"),
        list(scalability_label(sch$scalability),
             paste0(time_to_q(ceiling(sch$end * 4 - 1e-9) / 4 - 0.25),
@@ -208,7 +208,7 @@ detail_process <- function(data, model, id, kpi_ids) {
 issues_ui <- function(issues) {
   if (!nrow(issues)) return(NULL)
   tags$div(class = "callout issue",
-    tags$b(sprintf("%d date issue%s in the plan", nrow(issues), if (nrow(issues) > 1) "s" else "")),
+    tags$b(issue_count_label(issues)),
     tags$ul(lapply(seq_len(nrow(issues)), function(i)
       tags$li(sel_link("enabler", issues$enabler_id[i], issues$message[i])))))
 }
@@ -242,4 +242,13 @@ spend_table <- function(model, id) {
         if (changed) tags$td(class = "r", formatC(scen[i], format = "f", digits = 2))))),
       tags$tfoot(tags$tr(tags$td("Total"), tags$td(class = "r", formatC(sum(plan), format = "f", digits = 1)),
                          if (changed) tags$td(class = "r", formatC(sum(scen), format = "f", digits = 1))))))
+}
+
+#' "3 late dependencies, 1 date error" style label
+issue_count_label <- function(issues) {
+  n_late <- sum(issues$type == "prereq_ends_later")
+  n_bad <- sum(issues$type == "end_before_start")
+  parts <- c(if (n_late) sprintf("%d late dependenc%s", n_late, if (n_late > 1) "ies" else "y"),
+             if (n_bad) sprintf("%d date error%s", n_bad, if (n_bad > 1) "s" else ""))
+  paste(parts, collapse = ", ")
 }

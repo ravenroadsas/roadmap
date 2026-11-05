@@ -120,20 +120,24 @@ walk_graph <- function(start, nxt) {
 ancestors <- function(ids, prereq) walk_graph(ids, prereq)
 descendants <- function(ids, dependents) walk_graph(ids, dependents)
 
-#' Date inconsistencies in the plan (non-blocking)
+#' Date inconsistencies (non-blocking)
 #'
-#' * `end_before_start`: end quarter earlier than start quarter.
-#' * `prereq_ends_later`: a prerequisite goes live after the enabler that needs it.
+#' * `end_before_start`: end quarter earlier than start quarter (input error).
+#' * `prereq_ends_later`: a prerequisite goes live after the enabler that
+#'   needs it (a "late dependency", red arrow on the timeline).
+#' @param end optional named vector of scenario end times; plan ends when NULL.
 #' @return data frame enabler_id, related_id, type, message (one row per issue).
-date_issues <- function(data) {
+date_issues <- function(data, end = NULL) {
   e <- data$enabler
   s <- stats::setNames(q_to_time(e$start_q), e$id)
-  f <- stats::setNames(q_to_time(e$end_q, TRUE), e$id)
+  f_plan <- stats::setNames(q_to_time(e$end_q, TRUE), e$id)
+  f <- if (is.null(end)) f_plan else end[e$id]
+  lbl <- function(t) time_to_q(ceiling(t * 4 - 1e-9) / 4 - 0.25)
   name <- stats::setNames(e$name, e$id)
-  bad <- e$id[f <= s]
+  bad <- e$id[f_plan <= s]
   dep <- data$enabler_dependency
   dep <- dep[dep$enabler_id %in% e$id & dep$requires_id %in% e$id, ]
-  late <- dep[f[dep$requires_id] > f[dep$enabler_id] + 1e-9, ]
+  late <- dep[f[dep$requires_id] > f[dep$enabler_id] + 1e-6, ]
   out <- rbind(
     data.frame(enabler_id = bad, related_id = rep(NA_character_, length(bad)),
                type = rep("end_before_start", length(bad)),
@@ -144,8 +148,7 @@ date_issues <- function(data) {
                type = rep("prereq_ends_later", nrow(late)),
                message = sprintf("%s needs %s, which only goes live in %s (after %s)",
                                  name[late$enabler_id], name[late$requires_id],
-                                 e$end_q[match(late$requires_id, e$id)],
-                                 e$end_q[match(late$enabler_id, e$id)]),
+                                 lbl(f[late$requires_id]), lbl(f[late$enabler_id])),
                stringsAsFactors = FALSE)
   )
   rownames(out) <- NULL
