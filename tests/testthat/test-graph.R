@@ -31,8 +31,14 @@ test_that("graph_validate catches cycles and broken references", {
   expect_match(graph_validate(d), "cycle", all = FALSE)
   expect_error(build_graph(d), "cycle")
   d <- tiny_data()
-  d$enabler_link$kpi_id[1] <- "K9"
-  expect_match(graph_validate(d), "unknown kpi", all = FALSE)
+  d$result_enabler$result_id[1] <- "K9"
+  expect_match(graph_validate(d), "unknown result", all = FALSE)
+  d <- tiny_data()
+  d$result$kind[3] <- "goal"
+  expect_match(graph_validate(d), "must be kpi or milestone", all = FALSE)
+  d <- tiny_data()
+  d$result_enabler <- d$result_enabler[d$result_enabler$result_id != "M1", ]
+  expect_match(graph_validate(d), "M1 requires no enabler", all = FALSE)
 })
 
 test_that("sample data is valid and every enabler reaches a KPI", {

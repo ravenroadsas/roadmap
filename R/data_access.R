@@ -1,13 +1,14 @@
 # All data interaction lives in this file.
 # Input: an Excel workbook with one sheet per table plus a 'config' sheet
+# (process, result, enabler, result_enabler, enabler_dependency, config)
 # (ROADMAP_INPUT_XLSX, default inst/extdata/roadmap_input.xlsx). It is the source of truth: at
 # startup it is validated and loaded into the database, replacing its content.
 # Development: DuckDB (file or in-memory).
 # Enterprise: swap db_connect() for an odbc / RPostgres connection; the rest
 # uses plain DBI + portable SQL, so callers do not change.
 
-ROADMAP_TABLES <- c("process", "kpi", "enabler", "enabler_link",
-                    "enabler_dependency", "milestone")
+ROADMAP_TABLES <- c("process", "result", "enabler", "result_enabler",
+                    "enabler_dependency")
 
 #' Open a database connection
 #'
@@ -105,15 +106,16 @@ INPUT_SPEC <- list(
     id = list("chr", TRUE, NA, "Process ID, e.g. P2"),
     name = list("chr", TRUE, NA, "Process name"),
     owner = list("chr", TRUE, NA, "Accountable role (used as a filter)")),
-  kpi = list(
-    id = list("chr", TRUE, NA, "KPI ID, e.g. K-P2-01"),
+  result = list(
+    id = list("chr", TRUE, NA, "Result ID, e.g. K-P2-01 (KPI) or M-P2-01 (milestone)"),
     process_id = list("chr", TRUE, NA, "Process ID"),
-    name = list("chr", TRUE, NA, "What is measured"),
-    unit = list("chr", FALSE, "", "Unit of baseline and target (%, $M, days...)"),
-    baseline = list("num", TRUE, NA, "Current value"),
-    target = list("num", TRUE, NA, "Value at full adoption"),
-    target_year = list("int", FALSE, NA, "Year the target is expected"),
-    value_musd = list("num", TRUE, NA, "Annual value at target, $M"),
+    kind = list("chr", TRUE, NA, "kpi or milestone"),
+    name = list("chr", TRUE, NA, "What is measured (KPI) or achieved (milestone)"),
+    due = list("month", TRUE, NA, "Due date, YYYY-MM (KPI: when the target is due)"),
+    unit = list("chr", FALSE, "", "KPI: unit of baseline and target (%, $M, days...)"),
+    baseline = list("num", FALSE, NA, "KPI: current value (required for KPIs)"),
+    target = list("num", FALSE, NA, "KPI: value at full adoption (required for KPIs)"),
+    value_musd = list("num", FALSE, 0, "Annual value when achieved, $M (0 if none)"),
     value_driver = list("chr", FALSE, "none", "oil_price, fte_cost or none")),
   enabler = list(
     id = list("chr", TRUE, NA, "Enabler ID, e.g. E-P2-01 or E-X-01"),
@@ -127,22 +129,17 @@ INPUT_SPEC <- list(
     fte_internal = list("num", FALSE, 0, "Average internal FTE during the build"),
     fte_partner = list("num", FALSE, 0, "Average partner / contractor FTE during the build"),
     scalability = list("num", FALSE, 0, "0 rigid, 1 linear, >1 better than linear")),
-  enabler_link = list(
-    enabler_id = list("chr", TRUE, NA, "Enabler ID"),
-    kpi_id = list("chr", TRUE, NA, "KPI ID"),
-    weight = list("num", FALSE, 1, "Relative contribution to the KPI")),
+  result_enabler = list(
+    result_id = list("chr", TRUE, NA, "Result ID"),
+    enabler_id = list("chr", TRUE, NA, "Enabler the result requires"),
+    weight = list("num", FALSE, 1, "Relative contribution of the enabler to the result")),
   enabler_dependency = list(
     enabler_id = list("chr", TRUE, NA, "Enabler that needs something"),
-    requires_id = list("chr", TRUE, NA, "Enabler it needs")),
-  milestone = list(
-    id = list("chr", TRUE, NA, "Milestone ID, e.g. M-P2-01"),
-    milestone_date = list("month", TRUE, NA, "YYYY-MM"),
-    name = list("chr", TRUE, NA, "Observable outcome"),
-    enabler_id = list("chr", TRUE, NA, "Enabler that delivers it"))
+    requires_id = list("chr", TRUE, NA, "Enabler it needs"))
 )
-INPUT_KEYS <- list(process = "id", kpi = "id", enabler = "id",
-                   enabler_link = c("enabler_id", "kpi_id"),
-                   enabler_dependency = c("enabler_id", "requires_id"), milestone = "id")
+INPUT_KEYS <- list(process = "id", result = "id", enabler = "id",
+                   result_enabler = c("result_id", "enabler_id"),
+                   enabler_dependency = c("enabler_id", "requires_id"))
 
 input_path <- function() {
   p <- Sys.getenv("ROADMAP_INPUT_XLSX", "")
@@ -228,12 +225,19 @@ read_input_excel <- function(path = input_path()) {
     out[[t]] <- res
   }
   if (!length(probs)) {
-    empty <- c("process", "kpi", "enabler", "enabler_link")
+    empty <- c("process", "result", "enabler", "result_enabler")
     empty <- empty[vapply(out[empty], nrow, 1L) == 0]
     probs <- c(probs, sprintf("sheet '%s' has no rows", empty))
   }
   if (!length(probs)) {
+    r <- out$result
+    r$kind <- tolower(r$kind)
+    out$result$kind <- r$kind
+    kpi_miss <- r$kind == "kpi" & (is.na(r$baseline) | is.na(r$target))
     probs <- c(probs,
+      sprintf("result %s: a KPI needs baseline and target", r$id)[kpi_miss],
+      sprintf("result %s: value_driver '%s' must be oil_price, fte_cost or none", r$id, r$value_driver)[
+        !r$value_driver %in% c("oil_price", "fte_cost", "none")],
       sprintf("enabler %s: enabler_group '%s' must be people, digital, data or infra",
               out$enabler$id, out$enabler$enabler_group)[!out$enabler$enabler_group %in% GROUPS$id],
       graph_validate(out))

@@ -1,90 +1,92 @@
 # Glossary tab: definitions, and a foundation-to-value tree drawn as SVG.
 
 GLOSSARY <- data.frame(
-  term = c("Enabler", "Foundation", "KPI", "Value", "Milestone",
-           "Process", "Process owner", "Enabler link (weight)", "Dependency", "Late dependency",
-           "Ready date", "Run-rate vs realised value", "Allocated cost", "Scalability", "Config / scenario"),
-  core = c(rep(TRUE, 5), rep(FALSE, 10)),
+  term = c("Process", "Result", "KPI", "Milestone", "Value", "Enabler", "Foundation",
+           "Process owner", "Requirement (weight)", "Dependency", "Due date vs ready date",
+           "Late result", "Late dependency", "Run-rate vs realised value", "Allocated cost",
+           "Scalability", "Config / scenario"),
+  core = c(rep(TRUE, 7), rep(FALSE, 10)),
   definition = c(
+    "The business process being transformed. It owns a set of results; achieving them is how the process generates value.",
+    "A tangible outcome of a process, with a due date. Two kinds: KPI and milestone. Each result explicitly requires N enablers.",
+    "A result that is measured: a baseline and a target in its own unit (days, %, bbl/employee). Says how much better the process gets.",
+    "A result that is achieved or not: an observable step change (e.g. 250 wells per engineer). Same rules as a KPI: due date, required enablers, optional value.",
+    "What a result is worth in money once achieved (value_musd per year). The only place money comes in. Scaled by realisation, the value driver (oil price or labour cost) and adoption over time. A process's value is the sum of its results.",
     "Something we invest in and build: a digital solution, data, infrastructure or a people / change initiative. The only element that consumes money, internal staff (fte_internal) and partner staff (fte_partner). Has a start and a go-live date.",
-    "Not a separate thing: an enabler in a particular role. It is needed by other enablers (a prerequisite) but does not move the KPI itself. Its cost is shared by the KPIs of everything built on it. The same enabler can be direct for one KPI and a foundation for another.",
-    "A measurable result on one process, with a baseline and a target, in its own unit (days, %, bbl/FTE). Says how much better the process gets, not what is built.",
-    "What a KPI is worth in money when its target is reached (value_musd per year). The only place money comes in. Scaled by realisation, the value driver (oil price or labour cost) and adoption over time.",
-    "A visible checkpoint delivered by one enabler. Costs nothing and creates no value; it is for tracking and communication. Moves with its enabler when the build is shortened.",
-    "The business process being transformed. Every KPI belongs to exactly one process.",
+    "An enabler in a particular role: not required by the result directly, but a prerequisite of an enabler that is. Its cost is shared by the results of everything built on it. The same enabler can be required by one result and a foundation for another.",
     "The accountable role for a process. Used as a filter.",
-    "Says that an enabler helps move a KPI, and how much relative to the other enablers on the same KPI. Drives value attribution and cost allocation.",
+    "The explicit link 'result requires enabler', with a weight saying how much of the result the enabler accounts for. Drives value attribution and cost allocation.",
     "One enabler needs another to be live before it can go live itself.",
-    "A dependency where the prerequisite goes live after the enabler that needs it. Shown as a red arrow; counted on the scenario schedule.",
-    "When a KPI can start producing value: the latest go-live across its enablers and all their prerequisites. Value then starts after the adoption lag and ramps up.",
-    "Run-rate is $/yr once fully adopted. Realised value is what is actually earned up to the horizon, after delays and ramp-up.",
-    "The share of enabler cost charged to a KPI or process, including its share of foundations. Makes ROI and NPV per KPI possible.",
+    "The due date is when the result should be achieved. The ready date is when it can be: the latest go-live across its required enablers and their prerequisites.",
+    "A result whose ready date is after its due date. Shown in red; counted on the scenario schedule.",
+    "A prerequisite that goes live after the enabler that needs it. Shown as a red arrow.",
+    "Run-rate is $/yr once fully adopted. Realised value is what is actually earned up to the horizon, after the adoption lag and ramp-up.",
+    "The share of enabler cost charged to a result or process, including its share of foundations. Makes ROI and NPV per result possible.",
     "How an enabler's duration responds to more resources: 0 rigid, 1 linear, above 1 better than linear.",
     "The assumptions (oil price, realisation, overrun, discount rate, resources...). Changing them gives a scenario, compared with the base case."),
-  question = c("What do we build, when, for how much?", "What has to exist first?",
-               "How do we know the process improved?", "What is the improvement worth?",
-               "What can management check has happened?", "", "", "", "", "", "", "", "", "", ""),
-  example = c("Predictive maintenance platform, 2027Q1-2028Q2, $6M capex",
-              "Hybrid cloud, private 5G, OT cybersecurity",
-              "Work-order turnaround: 18 -> 7 days",
-              "$6.4M/yr for the turnaround KPI",
-              "Predictive maintenance on critical equipment, 2028-06",
-              "", "", "", "", "", "", "", "", "", ""),
-  where = c("sheet enabler", "derived from enabler_dependency", "sheet kpi", "kpi.value_musd",
-            "sheet milestone", "sheet process", "process.owner", "sheet enabler_link",
-            "sheet enabler_dependency", "computed", "computed", "computed", "computed",
+  question = c("Where does the value land, and who owns it?", "What tangible outcome do we commit to, by when?",
+               "How much better does the process get?", "What step can management check has happened?",
+               "What is the result worth?", "What do we build, when, for how much?", "What has to exist first?",
+               rep("", 10)),
+  example = c("Surveillance de yacimiento, owner Gerencia de Desarrollo y Producci\u00f3n",
+              "K-P04-01 Employees per 100 wells, due 2029-12",
+              "Employees per 100 wells: 2 \u2192 0.4",
+              "M-X-04 250 wells per engineer, due 2029-12",
+              "$6M/yr for employees per 100 wells",
+              "Agentic AI, 2028Q1-2028Q4, $4M capex",
+              "Data governance, semantic layer, WITSML upgrade",
+              rep("", 10)),
+  where = c("sheet process", "sheet result", "result.kind = kpi", "result.kind = milestone", "result.value_musd",
+            "sheet enabler", "derived from enabler_dependency", "process.owner", "sheet result_enabler",
+            "sheet enabler_dependency", "result.due / computed", "computed", "computed", "computed", "computed",
             "enabler.scalability", "sheet config"),
   stringsAsFactors = FALSE
 )
 
-#' Foundation-to-value tree for one KPI (pure; drawn by tree_svg())
+#' Foundation-to-value tree for one result (pure; drawn by tree_svg())
 #'
-#' Columns, left to right: foundations (deepest first), direct enablers,
-#' the KPI, its value. An enabler sits one column left of the leftmost
-#' enabler that needs it, so every dependency arrow points right.
+#' Columns, left to right: prerequisites (deepest first), required
+#' enablers, the result, its value. An enabler sits one column left of the
+#' leftmost enabler that needs it, so every dependency arrow points right.
 #' @return list(nodes, edges).
-kpi_tree <- function(data, model, kpi_id) {
+result_tree <- function(data, model, result_id) {
   g <- model$graph
-  ch <- g$chains[[kpi_id]]
+  ch <- g$chains[[result_id]]
   en <- c(ch$direct, ch$foundation)
-  # level 0 = direct only; otherwise 1 + max level of dependents in the chain
   lvl <- stats::setNames(rep(NA_real_, length(en)), en)
   get_lvl <- function(e) {
     if (!is.na(lvl[[e]])) return(lvl[[e]])
     deps <- intersect(g$dependents[[e]], en)
     l <- if (length(deps)) 1 + max(vapply(deps, get_lvl, 1)) else 0
-    if (!(e %in% ch$direct) && !length(deps)) l <- 1
     lvl[[e]] <<- l
     l
   }
   for (e in en) get_lvl(e)
   maxl <- max(lvl)
   e <- data$enabler[match(en, data$enabler$id), ]
-  alloc <- enabler_costs(model, kpi_id)[en]
-  ms <- model$milestones
-  k <- data$kpi[data$kpi$id == kpi_id, ]
-  p <- portfolio(model, kpi_id)
+  alloc <- enabler_costs(model, result_id)[en]
+  r <- data$result[data$result$id == result_id, ]
+  p <- portfolio(model, result_id)
+  late <- result_id %in% model$late$result_id
   nodes <- data.frame(
     id = en, type = ifelse(en %in% ch$direct, "enabler", "foundation"),
     group = e$enabler_group, col = maxl - lvl[en],
     label = e$name,
     sub = ifelse(en %in% ch$direct,
-                 sprintf("direct %s \u00b7 %s", fmt_pct(g$weight[en, kpi_id]), fmt_musd(alloc)),
+                 sprintf("required %s \u00b7 %s", fmt_pct(g$weight[en, result_id]), fmt_musd(alloc)),
                  sprintf("foundation \u00b7 %s", fmt_musd(alloc))),
-    milestones = vapply(en, function(i) {
-      m <- ms$id[ms$enabler_id == i]
-      lab <- paste(m, collapse = " ")
-      if (nchar(lab) > 8) sprintf("%d milestones", length(m)) else lab
-    }, ""),
+    milestones = vapply(en, function(i) q_of(model$schedule$end[model$schedule$id == i]), ""),
     stringsAsFactors = FALSE)
   nodes <- nodes[order(nodes$col, match(nodes$group, GROUPS$id), nodes$label), ]
+  pname <- data$process$name[data$process$id == r$process_id]
   nodes <- rbind(nodes,
-    data.frame(id = kpi_id, type = "kpi", group = "", col = maxl + 1, label = k$name,
-               sub = sprintf("%s \u00b7 %s \u2192 %s", data$process$name[data$process$id == k$process_id],
-                             fmt_num(k$baseline, k$unit), fmt_num(k$target, k$unit)),
-               milestones = "", stringsAsFactors = FALSE),
+    data.frame(id = result_id, type = paste(r$kind, if (late) "late"), group = "", col = maxl + 1,
+               label = paste0(if (r$kind == "kpi") "KPI \u00b7 " else "Milestone \u00b7 ", r$name),
+               sub = if (r$kind == "kpi") sprintf("%s \u2192 %s \u00b7 due %s", fmt_num(r$baseline, r$unit), fmt_num(r$target, r$unit), r$due)
+                     else sprintf("due %s \u00b7 ready %s", r$due, q_of(model$ready[[result_id]])),
+               milestones = if (late) "late" else "", stringsAsFactors = FALSE),
     data.frame(id = "value", type = "value", group = "", col = maxl + 2,
-               label = paste0(fmt_musd(p$run_rate), "/yr at full adoption"),
+               label = if (p$run_rate > 0) paste0(fmt_musd(p$run_rate), "/yr \u00b7 ", pname) else paste("No direct value \u00b7", pname),
                sub = sprintf("%s to %s \u00b7 NPV %s", fmt_musd(p$total_value), model$cfg$horizon_end, fmt_musd(p$npv)),
                milestones = "", stringsAsFactors = FALSE))
   dep <- data$enabler_dependency
@@ -92,9 +94,9 @@ kpi_tree <- function(data, model, kpi_id) {
   edges <- rbind(
     data.frame(from = dep$requires_id, to = dep$enabler_id, type = rep("dependency", nrow(dep)),
                label = rep("", nrow(dep)), stringsAsFactors = FALSE),
-    data.frame(from = ch$direct, to = kpi_id, type = "link",
-               label = fmt_pct(g$weight[ch$direct, kpi_id]), stringsAsFactors = FALSE),
-    data.frame(from = kpi_id, to = "value", type = "value", label = "", stringsAsFactors = FALSE))
+    data.frame(from = ch$direct, to = result_id, type = "link",
+               label = fmt_pct(g$weight[ch$direct, result_id]), stringsAsFactors = FALSE),
+    data.frame(from = result_id, to = "value", type = "value", label = "", stringsAsFactors = FALSE))
   rownames(nodes) <- NULL
   list(nodes = nodes, edges = edges)
 }
@@ -132,11 +134,11 @@ tree_svg <- function(tree, col_titles = NULL, node_w = 200, node_h = 46, gap_x =
     bar <- if (r$group %in% GROUPS$id) sprintf('<rect class="gl-bar %s" x="%.1f" y="%.1f" width="4" height="%d"/>',
                                                r$group, r$x, r$y, node_h) else ""
     ms <- if (nzchar(r$milestones)) sprintf(
-      '<path class="gl-ms" d="M%1$.1f,%2$.1fl5,5l-5,5l-5,-5z"/><text class="gl-mst" x="%3$.1f" y="%4$.1f" text-anchor="end">%5$s</text>',
-      r$x + node_w - 10, r$y + 5, r$x + node_w - 18, r$y + 13, esc(r$milestones)) else ""
+      '<text class="gl-mst%s" x="%.1f" y="%.1f" text-anchor="end">%s</text>',
+      if (r$milestones == "late") " late" else "", r$x + node_w - 6, r$y + 13, esc(r$milestones)) else ""
     sprintf('<g class="gl-node %s"><title>%s</title><rect x="%.1f" y="%.1f" width="%d" height="%d" rx="4"/>%s<text class="gl-t" x="%.1f" y="%.1f">%s</text><text class="gl-s" x="%.1f" y="%.1f">%s</text>%s</g>',
             r$type, esc(paste(r$label, "\u2014", r$sub)), r$x, r$y, node_w, node_h, bar,
-            r$x + 10, r$y + 19, esc(trunc(r$label, if (nzchar(r$milestones)) 30 - ceiling(nchar(r$milestones) * 0.9) - 2 else 30)), r$x + 10, r$y + 35, esc(trunc(r$sub, 33)), ms)
+            r$x + 10, r$y + 19, esc(trunc(r$label, if (nzchar(r$milestones)) 30 - ceiling(nchar(r$milestones) * 0.9) else 30)), r$x + 10, r$y + 35, esc(trunc(r$sub, 33)), ms)
   }, "")
   titles <- if (is.null(col_titles)) "" else paste(vapply(seq_len(ncol), function(c) sprintf(
     '<text class="gl-col" x="%.1f" y="14">%s</text>', 2 + (c - 1) * (node_w + gap_x), esc(col_titles[c])), ""), collapse = "")
@@ -145,32 +147,33 @@ tree_svg <- function(tree, col_titles = NULL, node_w = 200, node_h = 46, gap_x =
     W, H, W, H, titles, paste(edges, collapse = ""), paste(nodes, collapse = "")))
 }
 
-#' Column titles for a KPI tree
+#' Column titles for a result tree
 #'
-#' Left columns hold prerequisites by level. A direct enabler that is also
-#' a prerequisite of another direct enabler sits there too, so they are
-#' titled "Prerequisites" rather than "Foundations"; each box says its role.
+#' Left columns hold prerequisites by level. A required enabler that is
+#' also a prerequisite of another required enabler sits there too, so they
+#' are titled "Prerequisites" rather than "Foundations"; each box says its role.
 tree_titles <- function(tree) {
   ncol <- max(tree$nodes$col) + 1
   n_pre <- ncol - 3
   c(if (n_pre > 0) paste0("Prerequisites", if (n_pre > 1) paste0(" (level ", n_pre:1, ")") else ""),
-    "Direct enablers", "KPI on a process", "Value")
+    "Required enablers", "Result", "Value (process)")
 }
 
-#' Generic concept tree: foundation -> enabler -> KPI -> value
+#' Generic concept tree: foundation -> enabler -> results (KPI, milestone) -> process value
 concept_tree <- function() {
   nodes <- data.frame(
-    id = c("f1", "f2", "e1", "e2", "k", "v"),
-    type = c("foundation", "foundation", "enabler", "enabler", "kpi", "value"),
-    group = c("infra", "data", "digital", "people", "", ""),
-    col = c(0, 0, 1, 1, 2, 3),
+    id = c("f1", "f2", "e1", "e2", "k", "m", "v"),
+    type = c("foundation", "foundation", "enabler", "enabler", "kpi", "milestone", "value"),
+    group = c("infra", "data", "digital", "people", "", "", ""),
+    col = c(0, 0, 1, 1, 2, 2, 3),
     label = c("Foundation (infrastructure)", "Foundation (data)", "Enabler (digital solution)",
-              "Enabler (people / adoption)", "KPI on a process", "Value"),
-    sub = c("needed by enablers \u00b7 cost shared", "e.g. data platform", "money + people in \u00b7 go-live",
-            "training, change, new roles", "baseline \u2192 target", "$M per year at target"),
-    milestones = c("", "", "M", "", "", ""), stringsAsFactors = FALSE)
-  edges <- data.frame(from = c("f1", "f2", "e1", "e2", "k"), to = c("e1", "e1", "k", "k", "v"),
-                      type = c("dependency", "dependency", "link", "link", "value"),
-                      label = c("", "", "weight 70%", "30%", ""), stringsAsFactors = FALSE)
+              "Enabler (people / adoption)", "Result: KPI", "Result: milestone", "Value of the process"),
+    sub = c("prerequisite \u00b7 cost shared", "e.g. data platform", "money + people in \u00b7 go-live",
+            "training, change, new roles", "baseline \u2192 target, due date", "achieved or not, due date",
+            "$M per year, sum of its results"),
+    milestones = "", stringsAsFactors = FALSE)
+  edges <- data.frame(from = c("f1", "f2", "e1", "e2", "e1", "k", "m"), to = c("e1", "e1", "k", "k", "m", "v", "v"),
+                      type = c("dependency", "dependency", "link", "link", "link", "value", "value"),
+                      label = c("", "", "70%", "30%", "", "", ""), stringsAsFactors = FALSE)
   list(nodes = nodes, edges = edges)
 }

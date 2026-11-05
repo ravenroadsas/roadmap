@@ -11,13 +11,14 @@ filtered_processes <- function(data, filters) {
   p$id[p$id %in% sel_p & p$owner %in% sel_o]
 }
 
-#' KPIs passing the left-panel filters (process, owner, search)
+#' Results passing the left-panel filters (process, owner, result type, search)
 #'
-#' The enabler-group filter does not remove KPIs; it only hides enablers.
-filtered_kpi_ids <- function(data, graph, filters) {
-  k <- data$kpi
+#' The enabler-group filter does not remove results; it only hides enablers.
+filtered_result_ids <- function(data, graph, filters) {
+  k <- data$result
   e <- data$enabler
-  keep <- k$process_id %in% filtered_processes(data, filters)
+  keep <- k$process_id %in% filtered_processes(data, filters) &
+    k$kind %in% (filters$kind %||% c("kpi", "milestone"))
   q <- tolower(trimws(filters$query %||% ""))
   if (nzchar(q)) {
     hit <- vapply(k$id, function(i) {
@@ -34,22 +35,23 @@ filtered_kpi_ids <- function(data, graph, filters) {
 filters_active <- function(data, filters) {
   length(filtered_processes(data, filters)) < nrow(data$process) ||
     nzchar(trimws(filters$query %||% "")) ||
+    length(filters$kind %||% c("kpi", "milestone")) < 2 ||
     length(filters$group %||% GROUPS$id) < nrow(GROUPS)
 }
 
 #' Build the client payload
-#' @param filters list(process, owner, group, query).
+#' @param filters list(process, owner, kind, group, query).
 viz_payload <- function(data, model, filters, ns_prefix = "") {
   g <- model$graph
-  k <- data$kpi
+  k <- data$result
   e <- data$enabler
   q <- tolower(trimws(filters$query %||% ""))
   procs <- filtered_processes(data, filters)
-  shown <- filtered_kpi_ids(data, g, filters)
+  shown <- filtered_result_ids(data, g, filters)
   k_show <- k$id %in% shown
 
   # enablers: those behind the shown KPIs (plus foundations), in selected groups
-  if (length(procs) < nrow(data$process) || nzchar(q)) {
+  if (length(procs) < nrow(data$process) || nzchar(q) || length(shown) < nrow(k)) {
     direct <- rownames(g$weight)[rowSums(g$weight[, shown, drop = FALSE]) > 0]
     e_ids <- union(direct, ancestors(direct, g$prereq))
     if (nzchar(q)) e_ids <- union(e_ids, e$id[grepl(q, tolower(paste(e$name, e$subcategory)), fixed = TRUE)])
@@ -57,7 +59,6 @@ viz_payload <- function(data, model, filters, ns_prefix = "") {
     e_ids <- e$id
   }
   e_show <- e$id %in% e_ids & e$enabler_group %in% (filters$group %||% GROUPS$id)
-  ms <- data$milestone
 
   list(
     ns = ns_prefix,
@@ -77,19 +78,18 @@ viz_payload <- function(data, model, filters, ns_prefix = "") {
     issues = model$issues,
     processes = data.frame(id = data$process$id, name = data$process$name,
                            show = data$process$id %in% k$process_id[k_show]),
-    kpis = data.frame(
-      id = k$id, process = k$process_id, name = k$name, unit = k$unit,
-      baseline = k$baseline, target = k$target,
+    results = data.frame(
+      id = k$id, process = k$process_id, kind = k$kind, name = k$name, unit = k$unit,
+      baseline = k$baseline, target = k$target, due = k$due,
+      t_due = due_to_time(k$due), t_ready = unname(model$ready[k$id]),
+      late = k$id %in% model$late$result_id,
       run = round(unname(model$run_rate[k$id]), 2),
       process_name = data$process$name[match(k$process_id, data$process$id)],
       show = k_show, stringsAsFactors = FALSE
     ),
-    links = data.frame(enabler = data$enabler_link$enabler_id,
-                       kpi = data$enabler_link$kpi_id,
-                       weight = data$enabler_link$weight),
-    milestones = data.frame(id = ms$id, date = ms$milestone_date, name = ms$name,
-                            enabler = ms$enabler_id, t = model$milestones$t, t_plan = model$milestones$t_plan,
-                            stringsAsFactors = FALSE)
+    links = data.frame(enabler = data$result_enabler$enabler_id,
+                       result = data$result_enabler$result_id,
+                       weight = data$result_enabler$weight)
   )
 }
 

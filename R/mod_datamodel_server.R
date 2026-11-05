@@ -1,10 +1,9 @@
 TABLE_NOTES <- list(
-  process = "Business processes being transformed.",
-  kpi = "KPI or metric on one process. value_musd = annual $M at full target, scaled by the config key named in value_driver.",
+  process = "Business processes being transformed. Each owns a set of results.",
+  result = "Tangible results of a process: KPIs (baseline -> target) and milestones. Each has a due date and an optional annual value, scaled by the config key named in value_driver.",
   enabler = "Investment item in one of 4 groups. Carries the resource types: money (capex, opex), expertise and manpower (internal vs partner FTE).",
-  enabler_link = "Which enablers move which KPI (and so which process). The weight drives value attribution and cost allocation.",
-  enabler_dependency = "Prerequisites between enablers. Must be acyclic. Foundations share their cost across dependents.",
-  milestone = "Visible checkpoints, tied to the enabler that delivers them."
+  result_enabler = "Explicit: which enablers each result requires. The weight drives value attribution and cost allocation.",
+  enabler_dependency = "Prerequisites between enablers. Must be acyclic. Foundations share their cost across dependents."
 )
 
 #' Data model tab server

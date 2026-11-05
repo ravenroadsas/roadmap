@@ -1,4 +1,5 @@
-# Dependency graph between enablers, and the enabler -> KPI attribution.
+# Value chain: process -> results (KPIs and milestones) -> required enablers
+# -> their prerequisites (foundations). Graph, attribution and date checks.
 
 #' Convert a quarter label ("2027Q3") to decimal years
 #' @param q character vector of quarters.
@@ -14,6 +15,11 @@ month_to_time <- function(m) {
   as.integer(substr(m, 1, 4)) + (as.integer(substr(m, 6, 7)) - 0.5) / 12
 }
 
+#' End of a due month ("2028-06" -> 2028.5): a result is on time if ready by then
+due_to_time <- function(m) {
+  as.integer(substr(m, 1, 4)) + as.integer(substr(m, 6, 7)) / 12
+}
+
 #' Decimal year back to a quarter label
 time_to_q <- function(t) {
   y <- floor(t + 1e-9)
@@ -23,23 +29,21 @@ time_to_q <- function(t) {
 #' Check the data for broken references and dependency cycles
 #'
 #' These are blocking errors. Date inconsistencies are not: they load and
-#' are reported by date_issues() so the app can show them in red.
+#' are reported by date_issues() / result_issues() so the app shows them in red.
 #' @return character vector of problems (empty when valid).
 graph_validate <- function(data) {
   e <- data$enabler$id
-  k <- data$kpi$id
+  r <- data$result
   dep <- data$enabler_dependency
-  lk <- data$enabler_link
+  re <- data$result_enabler
   probs <- c(
-    sprintf("kpi %s: unknown process %s",
-            data$kpi$id, data$kpi$process_id)[!data$kpi$process_id %in% data$process$id],
-    sprintf("link %s-%s: unknown enabler", lk$enabler_id, lk$kpi_id)[!lk$enabler_id %in% e],
-    sprintf("link %s-%s: unknown kpi", lk$enabler_id, lk$kpi_id)[!lk$kpi_id %in% k],
+    sprintf("result %s: unknown process %s", r$id, r$process_id)[!r$process_id %in% data$process$id],
+    sprintf("result %s: kind '%s' must be kpi or milestone", r$id, r$kind)[!r$kind %in% c("kpi", "milestone")],
+    sprintf("result_enabler %s-%s: unknown enabler", re$result_id, re$enabler_id)[!re$enabler_id %in% e],
+    sprintf("result_enabler %s-%s: unknown result", re$result_id, re$enabler_id)[!re$result_id %in% r$id],
     sprintf("dependency %s-%s: unknown enabler", dep$enabler_id, dep$requires_id)[
       !(dep$enabler_id %in% e & dep$requires_id %in% e)],
-    sprintf("kpi %s has no enabler", k)[!k %in% lk$kpi_id],
-    sprintf("milestone %s: unknown enabler", data$milestone$id)[
-      !data$milestone$enabler_id %in% e]
+    sprintf("result %s requires no enabler", r$id)[!r$id %in% re$result_id]
   )
   # cycle detection by repeatedly removing enablers with no prerequisites left
   remaining <- dep[dep$enabler_id %in% e & dep$requires_id %in% e, ]
@@ -60,26 +64,27 @@ graph_validate <- function(data) {
 #'
 #' @param data list from db_read_all().
 #' @return list with prerequisite / dependent lists, normalised weights
-#'   (enabler x KPI), cost allocation shares, KPI chains and ready dates.
+#'   (enabler x result), cost allocation shares, result chains (required
+#'   enablers + foundations), plan ready dates and plan date issues.
 build_graph <- function(data) {
   probs <- graph_validate(data)
   if (length(probs)) stop("Invalid roadmap data:\n", paste(probs, collapse = "\n"))
 
   ids <- data$enabler$id
-  kids <- data$kpi$id
+  rids <- data$result$id
   dep <- data$enabler_dependency
   prereq <- lapply(stats::setNames(ids, ids), function(i) dep$requires_id[dep$enabler_id == i])
   dependents <- lapply(stats::setNames(ids, ids), function(i) dep$enabler_id[dep$requires_id == i])
 
-  # direct weights, normalised per KPI
-  w <- matrix(0, length(ids), length(kids), dimnames = list(ids, kids))
-  lk <- data$enabler_link
-  w[cbind(lk$enabler_id, lk$kpi_id)] <- lk$weight
+  # explicit requirement weights, normalised per result
+  w <- matrix(0, length(ids), length(rids), dimnames = list(ids, rids))
+  re <- data$result_enabler
+  w[cbind(re$enabler_id, re$result_id)] <- re$weight
   wn <- sweep(w, 2, pmax(colSums(w), 1e-12), "/")
 
-  # cost flow: direct weight + an equal share of each dependent's flow,
-  # so foundations carry the KPIs of everything built on them
-  flow <- matrix(NA_real_, length(ids), length(kids), dimnames = list(ids, kids))
+  # cost flow: own weight + an equal share of each dependent's flow,
+  # so foundations carry the results of everything built on them
+  flow <- matrix(NA_real_, length(ids), length(rids), dimnames = list(ids, rids))
   get_flow <- function(i) {
     if (!anyNA(flow[i, ])) return(flow[i, ])
     f <- wn[i, ]
@@ -92,16 +97,41 @@ build_graph <- function(data) {
   alloc <- flow / ifelse(rs > 0, rs, 1)
 
   end_t <- stats::setNames(q_to_time(data$enabler$end_q, TRUE), ids)
-  chains <- lapply(stats::setNames(kids, kids), function(k) {
-    direct <- ids[wn[, k] > 0]
+  chains <- lapply(stats::setNames(rids, rids), function(r) {
+    direct <- re$enabler_id[re$result_id == r]
     found <- setdiff(ancestors(direct, prereq), direct)
     list(direct = direct, foundation = found)
   })
   ready <- vapply(chains, function(ch) max(end_t[c(ch$direct, ch$foundation)]), numeric(1))
 
-  list(ids = ids, kpis = kids, prereq = prereq, dependents = dependents,
+  list(ids = ids, results = rids, prereq = prereq, dependents = dependents,
        weight = wn, alloc = alloc, chains = chains, ready = ready,
        issues = date_issues(data))
+}
+
+#' Results that cannot be achieved by their due date
+#'
+#' A result is late when its required enablers (and their prerequisites)
+#' go live after the end of its due month.
+#' @param ready named vector of ready times (scenario).
+#' @return data frame result_id, enabler_id (the latest one), type, message.
+result_issues <- function(data, graph, ready, end) {
+  r <- data$result
+  due <- stats::setNames(due_to_time(r$due), r$id)
+  late <- r$id[ready[r$id] > due + 1e-6]
+  lbl <- function(t) time_to_q(ceiling(t * 4 - 1e-9) / 4 - 0.25)
+  ename <- stats::setNames(data$enabler$name, data$enabler$id)
+  last <- vapply(late, function(i) {
+    ch <- graph$chains[[i]]
+    en <- c(ch$direct, ch$foundation)
+    en[which.max(end[en])]
+  }, "")
+  data.frame(
+    result_id = late, enabler_id = unname(last), type = rep("result_late", length(late)),
+    message = sprintf("%s (due %s) can only be achieved in %s: %s goes live then",
+                      r$name[match(late, r$id)], r$due[match(late, r$id)],
+                      lbl(ready[late]), ename[last]),
+    stringsAsFactors = FALSE)
 }
 
 #' All transitive prerequisites (or dependents) of a set of enablers

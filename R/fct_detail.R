@@ -1,34 +1,37 @@
 # Detail panel content for the current selection (rendered server-side).
 
-#' Parse "kpi:K1" style selection strings
+#' Parse "result:K1" style selection strings
 parse_selection <- function(x) {
   if (is.null(x) || !nzchar(x)) return(NULL)
   p <- strsplit(x, ":", fixed = TRUE)[[1]]
-  if (length(p) != 2 || !p[1] %in% c("kpi", "enabler", "process")) return(NULL)
+  if (length(p) != 2 || !p[1] %in% c("result", "enabler", "process")) return(NULL)
   list(type = p[1], id = p[2])
 }
 
-#' Enablers, KPIs and processes reached by a selection
-selection_sets <- function(data, graph, sel, kpi_ids) {
-  w <- graph$weight[, kpi_ids, drop = FALSE]
-  kpi_of <- function(en) colnames(w)[colSums(w[en, , drop = FALSE]) > 0]
-  proc_of <- function(ks) unique(data$kpi$process_id[match(ks, data$kpi$id)])
-  if (sel$type == "kpi") {
+#' Enablers, results and processes reached by a selection
+selection_sets <- function(data, graph, sel, result_ids) {
+  w <- graph$weight[, result_ids, drop = FALSE]
+  res_of <- function(en) colnames(w)[colSums(w[en, , drop = FALSE]) > 0]
+  proc_of <- function(rs) unique(data$result$process_id[match(rs, data$result$id)])
+  if (sel$type == "result") {
     ch <- graph$chains[[sel$id]]
-    list(direct = ch$direct, en = c(ch$direct, ch$foundation), kpi = sel$id,
+    list(direct = ch$direct, en = c(ch$direct, ch$foundation), result = sel$id,
          proc = proc_of(sel$id))
   } else if (sel$type == "enabler") {
     down <- descendants(sel$id, graph$dependents)
-    ks <- kpi_of(c(sel$id, down))
+    rs <- res_of(c(sel$id, down))
     list(direct = sel$id, en = unique(c(sel$id, ancestors(sel$id, graph$prereq), down)),
-         kpi = ks, proc = proc_of(ks), down = down)
+         result = rs, proc = proc_of(rs), down = down)
   } else {
-    ks <- intersect(data$kpi$id[data$kpi$process_id == sel$id], kpi_ids)
-    direct <- rownames(w)[rowSums(w[, ks, drop = FALSE]) > 0]
+    rs <- intersect(data$result$id[data$result$process_id == sel$id], result_ids)
+    direct <- rownames(w)[rowSums(w[, rs, drop = FALSE]) > 0]
     list(direct = direct, en = union(direct, ancestors(direct, graph$prereq)),
-         kpi = ks, proc = sel$id)
+         result = rs, proc = sel$id)
   }
 }
+
+#' "KPI" / "Milestone" tag
+kind_tag <- function(kind) tags$span(class = paste("ktag", kind), if (kind == "kpi") "KPI" else "MILESTONE")
 
 sel_link <- function(type, id, label, group = NULL) {
   btn <- tags$button(class = "lk", `data-sel` = paste0(type, ":", id), label)
@@ -46,37 +49,37 @@ cls <- function(x, c) structure(x, cls = c)
 sign_cls <- function(x) if (isTRUE(x >= 0)) "pos" else "neg"
 
 #' Detail panel for the selection (or the portfolio when nothing is selected)
-detail_ui <- function(data, model, sel, kpi_ids) {
-  if (is.null(sel)) return(detail_portfolio(data, model, kpi_ids))
-  if (!length(kpi_ids)) kpi_ids <- data$kpi$id
-  all_k <- data$kpi$id                 # a selected item is always shown in full
+detail_ui <- function(data, model, sel, result_ids) {
+  if (is.null(sel)) return(detail_portfolio(data, model, result_ids))
+  all_r <- data$result$id                 # a selected item is always shown in full
   switch(sel$type,
-    kpi = detail_kpi(data, model, sel$id, all_k),
-    enabler = detail_enabler(data, model, sel$id, all_k),
-    process = detail_process(data, model, sel$id, all_k)
+    result = detail_result(data, model, sel$id),
+    enabler = detail_enabler(data, model, sel$id, all_r),
+    process = detail_process(data, model, sel$id, all_r)
   )
 }
 
-detail_portfolio <- function(data, model, kpi_ids) {
-  k <- data$kpi[data$kpi$id %in% kpi_ids, ]
-  run <- model$run_rate[k$id]
-  o <- order(-run)
-  mx <- max(run)
+detail_portfolio <- function(data, model, result_ids) {
+  r <- data$result[data$result$id %in% result_ids, ]
+  run <- model$run_rate[r$id]
+  o <- order(-run, r$due)
+  mx <- max(run, 1e-9)
   ec <- enabler_costs(model)
-  dv <- enabler_direct_value(model, kpi_ids)
-  e <- data$enabler[order(-ec[data$enabler$id]), ][1:6, ]
+  dv <- enabler_direct_value(model, result_ids)
+  e <- data$enabler[order(-ec[data$enabler$id]), ][seq_len(min(6, nrow(data$enabler))), ]
   tagList(
     tags$div(tags$div(class = "eyebrow", sprintf("Value to %s", model$cfg$horizon_end)),
-             tags$h3("Select a KPI to trace what makes it possible")),
+             tags$h3("Select a result to trace what makes it possible")),
+    late_ui(model$late),
     issues_ui(model$issues),
     tags$div(class = "callout",
-      "Click a ", tags$b("KPI"), " to highlight its direct enablers and the foundations under them. ",
-      "Click an ", tags$b("enabler"), " to see what it unlocks. Figures follow the Sensitivity tab."),
-    tags$div(tags$div(class = "eyebrow", "Run-rate value by KPI ($M/yr)"),
+      "Each process has ", tags$b("results"), ": KPIs and milestones. Click one to highlight the enablers it ",
+      "requires and the foundations under them. Click an ", tags$b("enabler"), " to see what it unlocks."),
+    tags$div(tags$div(class = "eyebrow", "Results by run-rate value ($M/yr)"),
       tags$table(class = "t", tags$tbody(lapply(o, function(i) tags$tr(
-        tags$td(sel_link("kpi", k$id[i], k$name[i]),
+        tags$td(kind_tag(r$kind[i]), " ", sel_link("result", r$id[i], r$name[i]),
                 tags$div(class = "minibar", tags$i(style = sprintf("width:%.0f%%", run[i] / mx * 100)))),
-        tags$td(class = "r", formatC(run[i], format = "f", digits = 1))))))),
+        tags$td(class = "r", if (run[i] > 0) formatC(run[i], format = "f", digits = 1) else tags$span(class = "hint", "\u2013"))))))),
     tags$div(tags$div(class = "eyebrow", sprintf("Largest investments ($M to %s)", model$cfg$horizon_end)),
       tags$table(class = "t",
         tags$thead(tags$tr(tags$th("Enabler"), tags$th(class = "r", "Cost"), tags$th(class = "r", "Direct value"))),
@@ -88,8 +91,8 @@ detail_portfolio <- function(data, model, kpi_ids) {
   )
 }
 
-detail_kpi <- function(data, model, id, kpi_ids) {
-  k <- data$kpi[data$kpi$id == id, ]
+detail_result <- function(data, model, id) {
+  r <- data$result[data$result$id == id, ]
   g <- model$graph
   ch <- g$chains[[id]]
   p <- portfolio(model, id)
@@ -101,51 +104,63 @@ detail_kpi <- function(data, model, id, kpi_ids) {
   o <- order(!is_dir, -al[e$id])
   e <- e[o, ]
   is_dir <- is_dir[o]
-  ms <- data$milestone[data$milestone$enabler_id %in% en, ]
-  driver <- c(oil_price = "oil price", fte_cost = "labour cost", none = "fixed")[k$value_driver]
+  driver <- c(oil_price = "oil price", fte_cost = "labour cost", none = "fixed")[r$value_driver]
+  late <- model$late[model$late$result_id == id, ]
+  ready_q <- q_of(model$ready[[id]])
   tagList(
-    tags$div(tags$div(class = "eyebrow",
-                      data$process$name[data$process$id == k$process_id], " \u00b7 owner ",
-                      data$process$owner[data$process$id == k$process_id]),
-             tags$h3(k$name)),
-    kv(c("Baseline", paste("Target", k$target_year), "Ready"),
-       list(fmt_num(k$baseline, k$unit), fmt_num(k$target, k$unit), time_to_q(ceiling(model$ready[[id]] * 4 - 1e-9) / 4 - 0.25))),
-    kv(c("Run-rate", paste("Value to", model$cfg$horizon_end), "NPV"),
-       list(cls(paste0(fmt_musd(p$run_rate), "/yr"), "pos"), fmt_musd(p$total_value),
-            cls(fmt_musd(p$npv), sign_cls(p$npv)))),
+    tags$div(tags$div(class = "eyebrow", kind_tag(r$kind), " ",
+                      data$process$name[data$process$id == r$process_id], " \u00b7 owner ",
+                      data$process$owner[data$process$id == r$process_id]),
+             tags$h3(r$name)),
+    if (r$kind == "kpi") kv(c("Baseline", "Target", "Due"),
+       list(fmt_num(r$baseline, r$unit), fmt_num(r$target, r$unit), r$due))
+    else kv(c("Due", "Ready", "Status"),
+       list(r$due, cls(ready_q, if (nrow(late)) "neg" else ""), cls(if (nrow(late)) "late" else "on time", if (nrow(late)) "neg" else "pos"))),
+    if (p$run_rate > 0) {
+      kv(c(if (r$kind == "kpi") "Ready" else "Run-rate", paste("Value to", model$cfg$horizon_end), "NPV"),
+         list(if (r$kind == "kpi") cls(ready_q, if (nrow(late)) "neg" else "") else cls(paste0(fmt_musd(p$run_rate), "/yr"), "pos"),
+              fmt_musd(p$total_value), cls(fmt_musd(p$npv), sign_cls(p$npv))))
+    } else {
+      kv(c(if (r$kind == "kpi") "Ready" else "Value", "Allocated cost", if (r$kind == "kpi") "Value" else ""),
+         list(if (r$kind == "kpi") cls(ready_q, if (nrow(late)) "neg" else "") else "none",
+              fmt_musd(p$total_cost), if (r$kind == "kpi") "none" else ""))
+    },
+    if (nrow(late)) tags$div(class = "callout issue", tags$b("Late: "), late$message),
     issues_ui(model$issues[model$issues$enabler_id %in% en, ]),
     tags$div(class = "callout",
-      tags$b(length(ch$direct), " direct enablers"), " rely on ", tags$b(length(ch$foundation), " foundations"),
-      sprintf(". Allocated cost %s (ROI %s). Building the whole chain for this KPI alone would cost %s. Value driver: %s.",
-              fmt_musd(p$total_cost), fmt_pct(p$roi), fmt_musd(sum(tot[en])), driver)),
+      "Requires ", tags$b(sprintf("%d enabler%s", length(ch$direct), if (length(ch$direct) != 1) "s" else "")),
+      ", which rely on ", tags$b(sprintf("%d foundation%s", length(ch$foundation), if (length(ch$foundation) != 1) "s" else "")),
+      if (p$run_rate > 0) sprintf(". %sAllocated cost %s (ROI %s). Building the whole chain for this result alone would cost %s. Value driver: %s.",
+              if (r$kind == "kpi") paste0("Run-rate ", fmt_musd(p$run_rate), "/yr. ") else "",
+              fmt_musd(p$total_cost), fmt_pct(p$roi), fmt_musd(sum(tot[en])), driver)
+      else sprintf(". No value of its own (enabling result): it carries %s of allocated cost, which the portfolio figures include. Building its whole chain alone would cost %s.",
+                   fmt_musd(p$total_cost), fmt_musd(sum(tot[en])))),
     tags$table(class = "t",
       tags$thead(tags$tr(tags$th("Enabler"), tags$th("Role"), tags$th(class = "r", "Alloc. $M"))),
       tags$tbody(lapply(seq_len(nrow(e)), function(i) tags$tr(
         tags$td(sel_link("enabler", e$id[i], e$name[i], e$enabler_group[i]),
                 tags$div(class = "hint", paste0(e$start_q[i], "\u2013", e$end_q[i]))),
-        tags$td(if (is_dir[i]) tags$span(class = "role d", sprintf("DIRECT %.0f%%", g$weight[e$id[i], id] * 100))
+        tags$td(if (is_dir[i]) tags$span(class = "role d", sprintf("REQUIRED %.0f%%", g$weight[e$id[i], id] * 100))
                 else tags$span(class = "role f", "FOUNDATION")),
         tags$td(class = "r", formatC(al[e$id[i]], format = "f", digits = 1),
                 tags$div(class = "hint", paste("of", formatC(tot[e$id[i]], format = "f", digits = 1))))))),
-      tags$tfoot(tags$tr(tags$td(colspan = 2, "Allocated to this KPI"),
-                         tags$td(class = "r", formatC(p$total_cost, format = "f", digits = 1))))),
-    if (nrow(ms)) tags$div(tags$div(class = "eyebrow", "Milestones on the path"),
-      tags$table(class = "t", tags$tbody(lapply(seq_len(nrow(ms)), function(i)
-        tags$tr(tags$td(class = "mono", ms$milestone_date[i]), tags$td(ms$name[i]))))))
+      tags$tfoot(tags$tr(tags$td(colspan = 2, "Allocated to this result"),
+                         tags$td(class = "r", formatC(p$total_cost, format = "f", digits = 1)))))
   )
 }
 
-detail_enabler <- function(data, model, id, kpi_ids) {
+detail_enabler <- function(data, model, id, result_ids) {
   e <- data$enabler[data$enabler$id == id, ]
   g <- model$graph
   cfg <- model$cfg
-  s <- selection_sets(data, g, list(type = "enabler", id = id), kpi_ids)
-  dv <- enabler_direct_value(model, kpi_ids)[[id]]
+  s <- selection_sets(data, g, list(type = "enabler", id = id), result_ids)
+  dv <- enabler_direct_value(model, result_ids)[[id]]
   sch <- model$schedule[model$schedule$id == id, ]
   people <- (e$fte_internal * cfg$fte_cost + e$fte_partner * cfg$fte_cost * (1 + cfg$partner_premium)) / 1000
-  ks <- kpi_ids[g$alloc[id, kpi_ids] > 0]
+  ks <- result_ids[g$alloc[id, result_ids] > 0]
   ks <- ks[order(-g$alloc[id, ks])]
-  kname <- data$kpi$name[match(ks, data$kpi$id)]
+  kname <- data$result$name[match(ks, data$result$id)]
+  kkind <- data$result$kind[match(ks, data$result$id)]
   ename <- function(x) data$enabler$name[match(x, data$enabler$id)]
   egrp <- function(x) data$enabler$enabler_group[match(x, data$enabler$id)]
   tagList(
@@ -168,26 +183,27 @@ detail_enabler <- function(data, model, id, kpi_ids) {
     spend_table(model, id),
     tags$div(class = "callout",
       if (dv > 0) tagList("Direct value attributed: ", tags$b(fmt_musd(dv)), sprintf(" to %s. ", cfg$horizon_end))
-      else tagList(tags$b("Foundation enabler"), ": no direct KPI, its cost is shared by everything built on it. "),
-      "Unlocks ", tags$b(length(s$down)), " downstream enablers and ", tags$b(length(s$kpi)), " KPIs. Sourcing: ",
+      else tagList(tags$b("Foundation enabler"), ": no result requires it directly; its cost is shared by everything built on it. "),
+      "Unlocks ", tags$b(length(s$down)), " downstream enablers and ", tags$b(length(s$result)), " results. Sourcing: ",
       if (e$fte_partner > e$fte_internal) "mainly partners / contractors." else "mainly internal."),
     if (length(g$prereq[[id]])) tags$div(tags$div(class = "eyebrow", "Requires"),
       lapply(g$prereq[[id]], function(p) tags$div(sel_link("enabler", p, ename(p), egrp(p))))),
     if (length(g$dependents[[id]])) tags$div(tags$div(class = "eyebrow", "Enables"),
       lapply(g$dependents[[id]], function(p) tags$div(sel_link("enabler", p, ename(p), egrp(p))))),
     tags$table(class = "t",
-      tags$thead(tags$tr(tags$th("KPI served"), tags$th(class = "r", "Direct wt"), tags$th(class = "r", "Cost share"))),
+      tags$thead(tags$tr(tags$th("Results served"), tags$th(class = "r", "Weight"), tags$th(class = "r", "Cost share"))),
       tags$tbody(lapply(seq_along(ks), function(i) tags$tr(
-        tags$td(sel_link("kpi", ks[i], kname[i])),
+        tags$td(kind_tag(kkind[i]), " ", sel_link("result", ks[i], kname[i])),
         tags$td(class = "r", if (g$weight[id, ks[i]] > 0) fmt_pct(g$weight[id, ks[i]]) else "\u2013"),
         tags$td(class = "r", fmt_pct(g$alloc[id, ks[i]]))))))
   )
 }
 
-detail_process <- function(data, model, id, kpi_ids) {
+detail_process <- function(data, model, id, result_ids) {
   pr <- data$process[data$process$id == id, ]
-  ks <- intersect(data$kpi$id[data$kpi$process_id == id], kpi_ids)
-  s <- selection_sets(data, model$graph, list(type = "process", id = id), kpi_ids)
+  ks <- intersect(data$result$id[data$result$process_id == id], result_ids)
+  ks <- ks[order(data$result$kind[match(ks, data$result$id)], data$result$due[match(ks, data$result$id)])]
+  s <- selection_sets(data, model$graph, list(type = "process", id = id), result_ids)
   p <- portfolio(model, ks)
   tagList(
     tags$div(tags$div(class = "eyebrow", "Process \u00b7 owner ", pr$owner), tags$h3(pr$name)),
@@ -195,11 +211,16 @@ detail_process <- function(data, model, id, kpi_ids) {
        list(cls(paste0(fmt_musd(p$run_rate), "/yr"), "pos"), fmt_musd(p$total_cost),
             cls(fmt_musd(p$npv), sign_cls(p$npv)))),
     tags$table(class = "t",
-      tags$thead(tags$tr(tags$th("KPI"), tags$th(class = "r", "Run-rate"))),
-      tags$tbody(lapply(ks, function(k) tags$tr(
-        tags$td(sel_link("kpi", k, data$kpi$name[data$kpi$id == k])),
-        tags$td(class = "r", formatC(model$run_rate[[k]], format = "f", digits = 1)))))),
-    tags$div(class = "callout", sprintf("%d direct enablers and %d foundations sit behind this process.",
+      tags$thead(tags$tr(tags$th("Result"), tags$th(class = "r", "Due"), tags$th(class = "r", "Run-rate"))),
+      tags$tbody(lapply(ks, function(k) {
+        rr <- data$result[data$result$id == k, ]
+        lt <- k %in% model$late$result_id
+        tags$tr(tags$td(kind_tag(rr$kind), " ", sel_link("result", k, rr$name)),
+                tags$td(class = paste("r", if (lt) "neg"), rr$due, if (lt) " \u26a0"),
+                tags$td(class = "r", formatC(model$run_rate[[k]], format = "f", digits = 1)))
+      }))),
+    late_ui(model$late[model$late$result_id %in% ks, ]),
+    tags$div(class = "callout", sprintf("%d required enablers and %d foundations sit behind this process.",
                                         length(s$direct), length(s$en) - length(s$direct)))
   )
 }
@@ -251,4 +272,13 @@ issue_count_label <- function(issues) {
   parts <- c(if (n_late) sprintf("%d late dependenc%s", n_late, if (n_late > 1) "ies" else "y"),
              if (n_bad) sprintf("%d date error%s", n_bad, if (n_bad > 1) "s" else ""))
   paste(parts, collapse = ", ")
+}
+
+#' Red callout listing late results
+late_ui <- function(late) {
+  if (!nrow(late)) return(NULL)
+  tags$div(class = "callout issue",
+    tags$b(sprintf("%d late result%s", nrow(late), if (nrow(late) > 1) "s" else "")),
+    tags$ul(lapply(seq_len(nrow(late)), function(i)
+      tags$li(sel_link("result", late$result_id[i], late$message[i])))))
 }

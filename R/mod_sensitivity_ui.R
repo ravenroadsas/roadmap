@@ -1,8 +1,8 @@
 #' Sensitivity tab UI: time target + assumption sliders | timing + charts
 mod_sensitivity_ui <- function(id, cfg_table, data) {
   ns <- NS(id)
-  ms_t <- month_to_time(data$milestone$milestone_date)
-  last_q <- if (length(ms_t)) ceiling(max(ms_t) * 4) / 4 else 2030
+  due_t <- due_to_time(data$result$due)
+  last_q <- if (length(due_t)) ceiling(max(due_t) * 4) / 4 else 2030
   qs <- seq(2026.75, 2031, by = 0.25)
   q_lab <- time_to_q(qs - 0.25)                 # end of quarter -> its label
   sliders <- lapply(seq_len(nrow(cfg_table)), function(i) {
@@ -22,15 +22,18 @@ mod_sensitivity_ui <- function(id, cfg_table, data) {
     tags$div(class = "sl",
       shiny::radioButtons(ns("res_mode"), NULL,
         choices = c("Same extra resources on every enabler" = "uniform",
-                    "Back-calculate from a target date" = "target")),
+                    "Back-calculate: every result by its due date" = "due",
+                    "Back-calculate from a common target date" = "target")),
       shiny::conditionalPanel("input.res_mode == 'target'", ns = ns,
         shiny::selectInput(ns("target_q"), "Done by the end of",
                            choices = stats::setNames(qs, q_lab),
                            selected = qs[which.min(abs(qs - (last_q - 0.5)))], width = "100%",
                            selectize = FALSE),
         shiny::radioButtons(ns("target_scope"), NULL,
-          choices = c("Every milestone (the last milestone sets the date)" = "milestones",
-                      "Every enabler (roadmap complete)" = "enablers")),
+          choices = c("Every milestone" = "milestones",
+                      "Every result (KPIs and milestones)" = "results",
+                      "Every enabler (roadmap complete)" = "enablers"))),
+      shiny::conditionalPanel("input.res_mode != 'uniform'", ns = ns,
         shiny::checkboxInput(ns("pull_prereqs"), "Bring prerequisites forward too (no new late dependencies)", TRUE),
         tags$div(class = "d", "Resources per enabler are back-calculated from its scalability. ",
                  "The Extra resources slider is not used in this mode."))))
@@ -57,12 +60,12 @@ mod_sensitivity_ui <- function(id, cfg_table, data) {
                    tags$span(class = "sp hint", "change in NPV, each lever at low / high")),
           tags$div(class = "cbody", echarts4r::echarts4rOutput(ns("tornado"), height = "300px"))),
         tags$div(class = "box",
-          tags$div(class = "bh", tags$h2("Value to horizon by KPI"),
+          tags$div(class = "bh", tags$h2("Value to horizon by result"),
                    tags$span(class = "sp hint", "$M \u00b7 scenario vs base")),
-          tags$div(class = "cbody", echarts4r::echarts4rOutput(ns("kpis"), height = "300px"))),
+          tags$div(class = "cbody", echarts4r::echarts4rOutput(ns("results"), height = "300px"))),
         tags$div(class = "box wide",
-          tags$div(class = "bh", tags$h2("KPI ready date"),
-                   tags$span(class = "sp hint", "end of enabler chain \u00b7 base vs scenario (extra resources)")),
+          tags$div(class = "bh", tags$h2("Result ready date vs due date"),
+                   tags$span(class = "sp hint", "end of enabler chain \u00b7 due \u25c6, base, scenario")),
           tags$div(class = "cbody", echarts4r::echarts4rOutput(ns("ready"), height = "300px")))))
   )
 }

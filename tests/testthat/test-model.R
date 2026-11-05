@@ -15,11 +15,11 @@ test_that("value starts after readiness and ramps to full", {
   d <- tiny_data()
   g <- build_graph(d)
   cfg <- tiny_cfg()
-  v <- value_profile(d$kpi, g$ready, cfg, cfg, 2026:2030)
+  v <- value_profile(d$result, g$ready, cfg, cfg, 2026:2030)
   expect_equal(unname(v["K1", "2026"]), 0)
   expect_equal(unname(v["K1", "2029"]), 10)          # fully ramped (ready mid-2027, ramp 1 yr)
   expect_true(v["K1", "2027"] < v["K1", "2028"])
-  expect_equal(unname(attr(v, "run_rate")), c(10, 4))
+  expect_equal(unname(attr(v, "run_rate")), c(10, 4, 0))   # milestone M1 has no value
 })
 
 test_that("drivers scale value relative to the base case", {
@@ -33,7 +33,7 @@ test_that("drivers scale value relative to the base case", {
   expect_equal(m1$run_rate[["K2"]], m0$run_rate[["K2"]])   # driver 'none'
 })
 
-test_that("portfolio of all KPIs carries the full cost; subsets add up", {
+test_that("portfolio of all results carries the full cost; subsets add up", {
   d <- tiny_data()
   g <- build_graph(d)
   cfg <- tiny_cfg()
@@ -42,8 +42,11 @@ test_that("portfolio of all KPIs carries the full cost; subsets add up", {
   expect_equal(all$total_cost, sum(m$cost))
   k1 <- portfolio(m, "K1")
   k2 <- portfolio(m, "K2")
-  expect_equal(k1$total_cost + k2$total_cost, all$total_cost)
-  expect_equal(k1$total_value + k2$total_value, all$total_value)
+  m1 <- portfolio(m, "M1")
+  expect_equal(k1$total_cost + k2$total_cost + m1$total_cost, all$total_cost)
+  expect_equal(k1$total_value + k2$total_value + m1$total_value, all$total_value)
+  expect_equal(m1$total_value, 0)                              # milestone without value
+  expect_gt(m1$total_cost, 0)                                   # but it carries cost
   expect_equal(all$npv, sum(all$net))                          # discount rate 0
   expect_equal(all$roi, (all$total_value - all$total_cost) / all$total_cost)
 })

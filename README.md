@@ -1,6 +1,12 @@
 # Digital Transformation Roadmap 2026–2029
 
-Interactive roadmap that links **enablers** (investments) to **processes**, **KPIs** and **value**, with a sensitivity analysis on the main assumptions.
+Interactive roadmap built on one value chain: **each process has results** (KPIs and milestones, the two kinds of tangible outcome) that generate value; **each result explicitly requires N enablers**; enablers may need other enablers first (foundations). Includes a sensitivity analysis on cost, value and time.
+
+```
+PROCESS ──has──► RESULT (KPI | milestone) ──requires (weight)──► ENABLER ──requires──► ENABLER (foundation)
+   ▲                 │ due date, value $M/yr                         │ cost, staff, start → go-live
+   └──── value ──────┘
+```
 
 > **Status:** Shiny app v0.1 built as the R package `dtroadmap` (see below). `mockup/index.html` keeps the approved HTML prototype as the design reference.
 
@@ -8,25 +14,24 @@ Interactive roadmap that links **enablers** (investments) to **processes**, **KP
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Portfolio summary: headline figures, indicators (cost mix, share spent on foundations, peak spend and manpower, first value, date issues), value vs allocated cost per process with owner, cost per enabler split into capex / people / opex, value for money per enabler, spend per year by enabler group, internal vs partner manpower per year. |
-| **Roadmap** | Timeline (Gantt by enabler group, with milestones and dependency arrows) or Value chain view (Infra → Data → People → Digital → Process → KPI). Click a KPI to highlight its direct enablers and the foundations they need, with allocated cost, value, NPV and ROI. Click an enabler to see what it requires and what it unlocks. |
-| **Sensitivity** | Sliders for the config assumptions. Shows the annual cost/value profile against the base case, an NPV tornado (each lever at low/high), and value by KPI. |
+| **Overview** | Portfolio summary: headline figures, indicators (cost mix, share spent on foundations, peak spend and manpower, first value, scope, late results, late dependencies), value vs allocated cost per process with owner, KPIs, milestones and late results, cost per enabler split into capex / people / opex, value for money per enabler, spend per year by enabler group, internal vs partner manpower per year. |
+| **Roadmap** | Timeline: results lanes per process (KPIs ●, milestones ◆ at their due date; late ones in red with a line to their ready date) above the enabler Gantt with dependency arrows. Value chain: Infra → Data → People → Digital → Results → Processes. Click a result to highlight the enablers it requires and their foundations, with due vs ready date, allocated cost, value, NPV and ROI. Click an enabler to see what it requires and what it unlocks. |
+| **Sensitivity** | Sliders for the config assumptions. Shows the annual cost/value profile against the base case, an NPV tornado (each lever at low/high), value by result, and ready vs due date per result. Time box: uniform extra resources, or back-calculate the resources needed for every result to meet its due date (or a common target date). |
 | **Data model** | The proposed lightweight schema. |
-| **Glossary** | Definitions of every element (enabler, foundation, KPI, value, milestone and the computed terms), a concept diagram, and a live tree that follows any KPI from its foundations through its direct enablers to its value, with the cost allocated to it at each step. |
+| **Glossary** | Definitions of every element (process, result, KPI, milestone, value, enabler, foundation and the computed terms), a concept diagram, and a live tree that follows any result from its foundations through its required enablers to its value, with the cost allocated to it at each step. |
 
-Roadmap filters (process, process owner, enabler group, search) drive the timeline, value chain, KPI list and the headline figures above them. Everything is visible to every user.
+Roadmap filters (process, process owner, result type, enabler group, search) drive the timeline, value chain, results list and the headline figures above them. Everything is visible to every user.
 
 ## Lightweight data model
 
 ```
-process        (id, name, owner)
-kpi            (id, process_id → process, name, unit, baseline, target, target_year,
-                value_musd, value_driver [oil_price|labor|none])
-enabler        (id, group [people|digital|data|infra], subcategory, name, start_q, end_q,
-                capex_musd, opex_musd_yr, fte_internal, fte_partner)
-enabler_link   (enabler_id → enabler, kpi_id → kpi, weight)      -- enabler → KPI → process
-enabler_dependency (enabler_id → enabler, requires_id → enabler) -- DAG of prerequisites
-milestone      (id, date, name, enabler_id → enabler)
+process            (id, name, owner)
+result             (id, process_id → process, kind [kpi|milestone], name, due [YYYY-MM],
+                    unit, baseline, target (KPI only), value_musd, value_driver [oil_price|fte_cost|none])
+enabler            (id, enabler_group [people|digital|data|infra], subcategory, name, start_q, end_q,
+                    capex_musd, opex_musd_yr, fte_internal, fte_partner, scalability)
+result_enabler     (result_id → result, enabler_id → enabler, weight)   -- explicit: result requires enabler
+enabler_dependency (enabler_id → enabler, requires_id → enabler)        -- DAG of prerequisites (foundations)
 config         (key, label, unit, value, min, max, step, low, high, is_pct, in_sensitivity, description)
 ```
 
@@ -34,7 +39,7 @@ The three resource types map to columns: money (`capex`, `opex`), manpower and e
 
 ## Input workbook
 
-All roadmap data comes from one Excel file with one sheet per table: `process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`. Column names go in row 1 and column order doesn't matter. A `config` sheet holds the scenario assumptions: base value, slider range and step, low and high for the tornado, % formatting, and whether each one is used in the tornado. A `README` sheet lists every column with its type, whether it's required, and its default. On Posit Connect, a pin can override the config sheet.
+All roadmap data comes from one Excel file with one sheet per table: `process`, `result`, `enabler`, `result_enabler`, `enabler_dependency`. Column names go in row 1 and column order doesn't matter. A `config` sheet holds the scenario assumptions: base value, slider range and step, low and high for the tornado, % formatting, and whether each one is used in the tornado. A `README` sheet lists every column with its type, whether it's required, and its default. On Posit Connect, a pin can override the config sheet.
 
 - At startup the workbook is validated and loaded into the database, replacing what was there, so the workbook is the source of truth. To reload it, edit it and restart the app.
 - Problems stop the app with one message that lists them all, by sheet, column and row: missing sheets or columns, values that aren't numbers, quarters or months, duplicate IDs, unknown references, dependency cycles. Date conflicts are not errors; they are shown in red.
@@ -44,12 +49,12 @@ All roadmap data comes from one Excel file with one sheet per table: `process`, 
 
 - **Enabler cost / year** = capex × (1 + overrun), spread over the enabler's (scenario) duration + FTE cost during the build (partner FTE × (1 + partner premium)) + opex from go-live to the horizon.
 - **Extra resources**: the scenario lever `resource_multiplier` (r, 1 = plan) puts more resources on every enabler. Each enabler's `scalability` (s) sets the response: duration × r^(−s), with the start date fixed. s = 0 is rigid (no resources added, no change), s = 1 is linear (half the time at the same total cost), s < 1 gives diminishing returns (total cost rises as r^(1−s)), and s > 1 is better than linear (total cost falls). The same capex and people effort are spread over the shorter build, so yearly expenditure is recalculated. Opex starts at the new go-live. The enabler detail panel shows plan vs scenario spend per year.
-- **Time target** (Sensitivity → Time): instead of one multiplier for every enabler, choose a target quarter for the last milestone (or for every enabler) and the app back-calculates the resources each enabler needs. Start dates are fixed and a duration depends only on its own resources, so the multiplier has a closed form, r = k^(−1/s), where k is the share of the plan duration allowed. Only enablers that would miss the target get extra resources. With "bring prerequisites forward", their prerequisites are accelerated too, so none goes live after its dependent. Enablers that can't make it (rigid, starting after the target, needing less than a quarter, or above the resource limit) are listed. The panel shows the dates, the extra investment, the change in value and NPV, and each accelerated enabler. Milestones keep their relative position inside a shortened build.
+- **Time target** (Sensitivity → Time): back-calculate the resources each enabler needs so that **every result meets its own due date** (default), or so that every milestone / result / enabler is done by a common target quarter. Start dates are fixed and a duration depends only on its own resources, so the multiplier has a closed form, r = k^(−1/s), where k is the share of the plan duration allowed. A result's deadline applies to its required enablers and all their prerequisites. Enablers that can't make it (rigid, starting after the deadline, needing less than a quarter, or above the resource limit) are listed. The panel shows dates, late results before → after, extra investment, the change in value and NPV, and each accelerated enabler.
 - **Late dependencies** (red arrows: a prerequisite going live after the enabler that needs it) are counted on the scenario schedule, not just the plan. The count appears on the timeline, the detail panel, the Overview and the timing panel.
-- **KPI ready date** = latest (scenario) end date across its direct enablers and all their prerequisites.
+- **Result ready date** = latest (scenario) go-live across its required enablers and all their prerequisites. A result is **late** when that is after the end of its due month.
 - **Date issues** (an end before the start, or a prerequisite going live after the enabler that needs it) don't block loading. They're shown in red on the timeline, value chain and detail panel. Missing references and dependency cycles still stop the app at startup.
-- **KPI value / year** = `value_musd` × realisation × driver factor (oil price / base or FTE cost / base) × adoption ramp (starts after the adoption lag, linear over the ramp years).
-- **Cost allocation**: each direct enabler is split across KPIs by link weight; foundation enablers pass their cost to the KPIs of their dependents, so shared infrastructure is spread rather than double-counted.
+- **Result value / year** = `value_musd` × realisation × driver factor (oil price / base or FTE cost / base) × adoption ramp (starts after the adoption lag, linear over the ramp years).
+- **Cost allocation**: each enabler's cost is split across the results that require it, by weight; foundation enablers pass their cost to the results of their dependents, so shared infrastructure is spread rather than double-counted. A milestone with no value still carries its share of cost.
 - **Portfolio**: NPV at the discount rate, ROI = (value − cost) / cost, payback = first year cumulative net ≥ 0.
 
 ## Shiny app (R package `dtroadmap`)
@@ -61,7 +66,7 @@ R/
   fct_graph.R            dependency graph, validation, weights, cost allocation, ready dates
   fct_model.R            cost_profile(), value_profile(), run_model(), portfolio(), tornado()
   fct_payload.R          data sent to the browser canvas
-  fct_detail.R           detail panel (KPI / enabler / process / portfolio)
+  fct_detail.R           detail panel (result / enabler / process / portfolio)
   fct_charts.R           sensitivity chart data (tested) + echarts4r rendering, summary strip
   fct_overview.R         overview tables and indicators (tested) + charts
   fct_timing.R           timing panel: dates, late dependencies, cost of acceleration

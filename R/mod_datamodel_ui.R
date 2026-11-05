@@ -4,13 +4,12 @@ mod_datamodel_ui <- function(id) {
   tagList(
     tags$div(class = "intro",
       tags$h2("Data model"),
-      tags$p("Six tables plus a key / value config. Money goes into enablers; enablers move KPIs through ",
-             "processes; KPIs carry value."),
-      tags$div(class = "flow", tags$span(class = "n", "config"), "\u2192", tags$span(class = "n", "enabler"),
-               "\u21e2", tags$span(class = "n", "enabler_link (weight)"), "\u2192", tags$span(class = "n", "kpi"),
-               "\u2192", tags$span(class = "n", "process"),
-               tags$span(class = "hint", style = "margin-left:10px",
-                         "milestone \u2192 enabler \u00b7 enabler_dependency \u2192 enabler"))),
+      tags$p("Five tables plus a config sheet. Each process has results (KPIs and milestones); each result ",
+             "requires enablers; enablers may need other enablers first. Money goes into enablers; value comes out of results."),
+      tags$div(class = "flow", tags$span(class = "n", "process"), "\u2192", tags$span(class = "n", "result (kpi | milestone)"),
+               "\u2192", tags$span(class = "n", "result_enabler (weight)"), "\u2192", tags$span(class = "n", "enabler"),
+               "\u2192", tags$span(class = "n", "enabler_dependency"),
+               tags$span(class = "hint", style = "margin-left:10px", "config: scenario assumptions"))),
     shiny::uiOutput(ns("source")),
     shiny::uiOutput(ns("schema"))
   )

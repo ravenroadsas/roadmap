@@ -91,8 +91,9 @@ fte_profile <- function(enabler, years, sched) {
              partner = colSums(b * enabler$fte_partner * sched$people_factor))
 }
 
-#' KPI ready date: latest scenario end across its enabler chain
-kpi_ready <- function(graph, sched) {
+#' Result ready date: latest scenario end across its required enablers and
+#' their prerequisites
+result_ready <- function(graph, sched) {
   end_t <- stats::setNames(sched$end, sched$id)
   vapply(graph$chains, function(ch) max(end_t[c(ch$direct, ch$foundation)]), numeric(1))
 }
@@ -107,21 +108,22 @@ driver_factor <- function(driver, cfg, base) {
 #' Yearly value of each KPI
 #'
 #' Full value = value_musd x realisation x driver factor. Benefits start
-#' `adoption_delay` years after the KPI's whole enabler chain is ready
+#' `adoption_delay` years after the result's whole enabler chain is ready
 #' and ramp linearly over `ramp_years`. Evaluated quarterly, averaged per year.
 #' @return matrix KPI x year.
-value_profile <- function(kpi, ready, cfg, base, years) {
-  full <- kpi$value_musd * cfg$realization * driver_factor(kpi$value_driver, cfg, base)
-  r <- ready[kpi$id]
+value_profile <- function(result, ready, cfg, base, years) {
+  vm <- ifelse(is.na(result$value_musd), 0, result$value_musd)
+  full <- vm * cfg$realization * driver_factor(result$value_driver, cfg, base)
+  r <- ready[result$id]
   out <- vapply(years, function(y) {
     q <- y + (0:3 + 0.5) / 4
     ramp <- vapply(r, function(ri) {
       mean(pmin(1, pmax(0, (q - ri - cfg$adoption_delay) / cfg$ramp_years)))
     }, numeric(1))
     full * ramp
-  }, numeric(nrow(kpi)))
-  out <- matrix(out, nrow = nrow(kpi), dimnames = list(kpi$id, years))
-  attr(out, "run_rate") <- stats::setNames(full, kpi$id)
+  }, numeric(nrow(result)))
+  out <- matrix(out, nrow = nrow(result), dimnames = list(result$id, years))
+  attr(out, "run_rate") <- stats::setNames(full, result$id)
   out
 }
 
@@ -134,18 +136,18 @@ run_model <- function(data, graph, cfg, base = cfg, resources = NULL) {
   start <- floor(min(q_to_time(data$enabler$start_q)))
   years <- seq(start, cfg$horizon_end)
   sched <- schedule(data$enabler, cfg, resources)
-  ready <- kpi_ready(graph, sched)
+  ready <- result_ready(graph, sched)
   parts <- cost_parts(data$enabler, cfg, years, sched)
   cost <- parts$capex + parts$people + parts$opex
   plan_cfg <- cfg
   plan_cfg$resource_multiplier <- 1
   plan_cost <- cost_profile(data$enabler, plan_cfg, years)
-  value <- value_profile(data$kpi, ready, cfg, base, years)
+  value <- value_profile(data$result, ready, cfg, base, years)
   list(
     cfg = cfg, years = years, start = start, resources = resources,
     schedule = sched, ready = ready,
-    milestones = milestone_schedule(data$milestone, sched),
     issues = date_issues(data, stats::setNames(sched$end, sched$id)),
+    late = result_issues(data, graph, ready, stats::setNames(sched$end, sched$id)),
     cost = cost, cost_parts = parts, plan_cost = plan_cost, value = value,
     run_rate = attr(value, "run_rate"),
     discount = 1 / (1 + cfg$discount_rate)^(years - start),
@@ -157,10 +159,10 @@ run_model <- function(data, graph, cfg, base = cfg, resources = NULL) {
 #'
 #' Enabler costs are allocated to the KPIs through the graph's allocation
 #' shares, so the full KPI set carries the full cost.
-portfolio <- function(model, kpi_ids = colnames(model$graph$alloc)) {
-  share <- rowSums(model$graph$alloc[, kpi_ids, drop = FALSE])
+portfolio <- function(model, result_ids = colnames(model$graph$alloc)) {
+  share <- rowSums(model$graph$alloc[, result_ids, drop = FALSE])
   cost <- colSums(model$cost * share)
-  value <- colSums(model$value[kpi_ids, , drop = FALSE])
+  value <- colSums(model$value[result_ids, , drop = FALSE])
   net <- value - cost
   cum <- cumsum(net)
   pay <- which(cum >= 0)
@@ -172,20 +174,20 @@ portfolio <- function(model, kpi_ids = colnames(model$graph$alloc)) {
     total_value = sum(value), total_cost = total_cost,
     roi = if (total_cost > 0) (sum(value) - total_cost) / total_cost else NA_real_,
     payback = if (length(pay)) model$years[pay[1]] else NA_integer_,
-    run_rate = sum(model$run_rate[kpi_ids])
+    run_rate = sum(model$run_rate[result_ids])
   )
 }
 
 #' Per-enabler cost to horizon, and cost allocated to one KPI
-enabler_costs <- function(model, kpi_id = NULL) {
+enabler_costs <- function(model, result_id = NULL) {
   tot <- rowSums(model$cost)
-  if (is.null(kpi_id)) return(tot)
-  tot * model$graph$alloc[, kpi_id]
+  if (is.null(result_id)) return(tot)
+  tot * model$graph$alloc[, result_id]
 }
 
 #' Direct value attributed to each enabler (by normalised link weight)
-enabler_direct_value <- function(model, kpi_ids = colnames(model$graph$weight)) {
-  as.vector(model$graph$weight[, kpi_ids, drop = FALSE] %*% rowSums(model$value[kpi_ids, , drop = FALSE])) |>
+enabler_direct_value <- function(model, result_ids = colnames(model$graph$weight)) {
+  as.vector(model$graph$weight[, result_ids, drop = FALSE] %*% rowSums(model$value[result_ids, , drop = FALSE])) |>
     stats::setNames(rownames(model$graph$weight))
 }
 
@@ -195,13 +197,13 @@ enabler_direct_value <- function(model, kpi_ids = colnames(model$graph$weight)) 
 #' scenario value.
 #' @param cfg_table config data frame (low / high / in_sensitivity).
 #' @return data frame sorted by NPV spread, largest first.
-tornado <- function(data, graph, cfg, base, cfg_table, kpi_ids = graph$kpis, resources = NULL) {
+tornado <- function(data, graph, cfg, base, cfg_table, result_ids = graph$results, resources = NULL) {
   levers <- cfg_table[cfg_table$in_sensitivity, ]
   if (!is.null(resources)) levers <- levers[levers$key != "resource_multiplier", ]
   npv_at <- function(key, v) {
     s <- cfg
     s[[key]] <- v
-    portfolio(run_model(data, graph, s, base, resources), kpi_ids)$npv
+    portfolio(run_model(data, graph, s, base, resources), result_ids)$npv
   }
   out <- data.frame(
     key = levers$key, label = levers$label,
@@ -216,81 +218,77 @@ tornado <- function(data, graph, cfg, base, cfg_table, kpi_ids = graph$kpis, res
   out
 }
 
-#' Scenario milestone dates
-#'
-#' A milestone keeps its relative position inside its enabler's build: if
-#' the build is 30% shorter, the time from start to milestone is too.
-#' Milestones before the enabler's start do not move.
-milestone_schedule <- function(milestone, sched) {
-  i <- match(milestone$enabler_id, sched$id)
-  t_plan <- month_to_time(milestone$milestone_date)
-  st <- sched$start[i]
-  k <- sched$duration[i] / sched$duration_plan[i]
-  t <- ifelse(!is.na(i) & t_plan > st, st + (t_plan - st) * k, t_plan)
-  data.frame(id = milestone$id, enabler_id = milestone$enabler_id, name = milestone$name,
-             t_plan = t_plan, t = t, stringsAsFactors = FALSE)
-}
-
-#' Back-calculate the resources needed to meet a target date
+#' Back-calculate the resources needed to meet dates
 #'
 #' Start dates are fixed and an enabler's duration depends only on its own
 #' resources (duration = plan x r^-s), so the multiplier each enabler needs
 #' has a closed form: r = k^(-1/s), where k is the share of the plan
 #' duration it may take.
 #'
-#' * scope "milestones": every milestone due after `target` is pulled to
-#'   `target` by accelerating the enabler that delivers it.
-#' * scope "enablers": every enabler must go live by `target`.
-#' * pull_prereqs: an accelerated enabler's prerequisites are accelerated
-#'   too, so they still go live no later than it does (no new late
-#'   dependencies). Applied repeatedly down the dependency chain.
+#' Deadlines per scope:
+#' * "due": every result by its own due date (end of its due month).
+#' * "milestones" / "results": every milestone / every result by `target`.
+#' * "enablers": every enabler goes live by `target`.
+#' For a result, the deadline applies to its required enablers and all
+#' their prerequisites (the result is ready only when all are live).
+#' pull_prereqs: an accelerated enabler's prerequisites are accelerated
+#' too, so none goes live after it (no new late dependencies).
 #'
-#' Enablers that cannot make it (rigid, starting after the target, below
+#' Enablers that cannot make it (rigid, starting after the deadline, below
 #' one quarter, or needing more than `r_max`) are listed as blockers; they
 #' get the most they can usefully take.
-#' @return list(resources, blockers, feasible, target).
-solve_target <- function(data, cfg, target, scope = c("milestones", "enablers"),
+#' @return list(resources, blockers, feasible, target, scope).
+solve_target <- function(data, graph, cfg, target = NA_real_,
+                         scope = c("due", "milestones", "results", "enablers"),
                          pull_prereqs = TRUE, r_max = 5) {
   scope <- match.arg(scope)
   e <- data$enabler
   plan <- schedule(e, utils::modifyList(cfg, list(resource_multiplier = 1)))
   ids <- e$id
   k_req <- stats::setNames(rep(1, length(ids)), ids)
-  need <- function(id, k) k_req[[id]] <<- min(k_req[[id]], k)
-  if (scope == "milestones") {
-    ms <- milestone_schedule(data$milestone, plan)
-    for (j in which(ms$t_plan > target + 1e-9)) {
-      i <- match(ms$enabler_id[j], ids)
-      need(ids[i], (target - plan$start[i]) / (ms$t_plan[j] - plan$start[i]))
-    }
+  need <- function(i, deadline) {
+    k <- (deadline - plan$start[i]) / plan$duration_plan[i]
+    k_req[[ids[i]]] <<- min(k_req[[ids[i]]], k)
+  }
+  if (scope == "enablers") {
+    for (i in which(plan$end > target + 1e-9)) need(i, target)
   } else {
-    for (i in which(plan$end > target + 1e-9)) need(ids[i], (target - plan$start[i]) / plan$duration_plan[i])
+    r <- data$result
+    if (scope == "milestones") r <- r[r$kind == "milestone", ]
+    deadline <- if (scope == "due") due_to_time(r$due) else rep(target, nrow(r))
+    for (j in seq_len(nrow(r))) {
+      ch <- graph$chains[[r$id[j]]]
+      for (en in c(ch$direct, ch$foundation)) {
+        i <- match(en, ids)
+        if (plan$end[i] > deadline[j] + 1e-9) need(i, deadline[j])
+      }
+    }
   }
   r_for <- function(i) {
     k <- k_req[[ids[i]]]
     sc <- plan$scalability[i]
     floor_k <- min(plan$duration_plan[i], 0.25) / plan$duration_plan[i]
     if (k >= 1 - 1e-9) return(list(r = 1, why = NA_character_))
-    if (k <= 0) return(list(r = 1, why = "starts after the target"))
+    if (k <= 0) return(list(r = 1, why = "starts after the deadline"))
     if (sc == 0) return(list(r = 1, why = "rigid (scalability 0)"))
     if (k < floor_k - 1e-9) return(list(r = min(r_max, floor_k^(-1 / sc)), why = "would need less than one quarter"))
-    r <- k^(-1 / sc)
-    if (r > r_max + 1e-9) return(list(r = r_max, why = sprintf("needs x%.1f resources (limit x%.0f)", r, r_max)))
-    list(r = r, why = NA_character_)
+    rr <- k^(-1 / sc)
+    if (rr > r_max + 1e-9) return(list(r = r_max, why = sprintf("needs x%.1f resources (limit x%.0f)", rr, r_max)))
+    list(r = rr, why = NA_character_)
   }
   dep <- data$enabler_dependency
   for (iter in seq_len(length(ids) + 1)) {
     sol <- lapply(seq_along(ids), r_for)
-    r <- stats::setNames(vapply(sol, `[[`, 1, "r"), ids)
+    res <- stats::setNames(vapply(sol, `[[`, 1, "r"), ids)
     if (!pull_prereqs) break
-    sch <- schedule(e, cfg, r)
+    sch <- schedule(e, cfg, res)
     end <- stats::setNames(sch$end, ids)
     changed <- FALSE
     for (d in seq_len(nrow(dep))) {
       a <- dep$enabler_id[d]
       p <- dep$requires_id[d]
       ip <- match(p, ids)
-      if (r[[a]] > 1 + 1e-9 && end[[p]] > end[[a]] + 1e-6) {
+      if (res[[a]] > 1 + 1e-9 && end[[p]] > end[[a]] + 1e-6) {
         k <- (end[[a]] - plan$start[ip]) / plan$duration_plan[ip]
         if (k < k_req[[p]] - 1e-9) {
           k_req[[p]] <- k
@@ -302,5 +300,5 @@ solve_target <- function(data, cfg, target, scope = c("milestones", "enablers"),
   }
   why <- vapply(sol, `[[`, "", "why")
   blockers <- data.frame(enabler_id = ids[!is.na(why)], reason = why[!is.na(why)], stringsAsFactors = FALSE)
-  list(resources = r, blockers = blockers, feasible = !nrow(blockers), target = target)
+  list(resources = res, blockers = blockers, feasible = !nrow(blockers), target = target, scope = scope)
 }

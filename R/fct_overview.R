@@ -24,16 +24,18 @@ enabler_cost_table <- function(data, model) {
 process_table <- function(data, model) {
   rows <- lapply(seq_len(nrow(data$process)), function(i) {
     pid <- data$process$id[i]
-    ks <- data$kpi$id[data$kpi$process_id == pid]
+    ks <- data$result$id[data$result$process_id == pid]
+    kind <- data$result$kind[match(ks, data$result$id)]
     if (!length(ks)) {
       return(data.frame(id = pid, name = data$process$name[i], owner = data$process$owner[i],
-                        kpis = 0L, run_rate = 0, value = 0, cost = 0, npv = 0, roi = NA_real_,
+                        kpis = 0L, milestones = 0L, late = 0L, run_rate = 0, value = 0, cost = 0, npv = 0, roi = NA_real_,
                         first_value = NA_real_, full_value = NA_real_))
     }
     p <- portfolio(model, ks)
     r <- model$ready[ks] + model$cfg$adoption_delay
     data.frame(id = pid, name = data$process$name[i], owner = data$process$owner[i],
-               kpis = length(ks), run_rate = p$run_rate, value = p$total_value,
+               kpis = sum(kind == "kpi"), milestones = sum(kind == "milestone"),
+               late = sum(ks %in% model$late$result_id), run_rate = p$run_rate, value = p$total_value,
                cost = p$total_cost, npv = p$npv, roi = p$roi,
                first_value = min(r), full_value = max(r) + model$cfg$ramp_years)
   })
@@ -69,11 +71,12 @@ overview_stats <- function(data, model) {
     foundation_share = sum(et$total[found]) / sum(et$total),
     first_value = min(pt$first_value, na.rm = TRUE),
     roadmap_end = max(model$schedule$end),
-    n_process = nrow(data$process), n_kpi = nrow(data$kpi),
-    n_enabler = nrow(data$enabler), n_milestone = nrow(data$milestone),
+    n_process = nrow(data$process), n_kpi = sum(data$result$kind == "kpi"),
+    n_enabler = nrow(data$enabler), n_milestone = sum(data$result$kind == "milestone"),
     n_issues = nrow(model$issues),
     n_late = sum(model$issues$type == "prereq_ends_later"),
-    last_milestone = if (nrow(model$milestones)) max(model$milestones$t) else NA_real_
+    n_late_results = nrow(model$late),
+    last_milestone = last_result_time(data, model, "milestone")
   )
 }
 
@@ -131,4 +134,11 @@ chart_fte <- function(fte) {
     echarts4r::e_bar_("partner", name = "Partners & contractors", stack = "f", itemStyle = list(color = COL$muted)) |>
     echarts4r::e_grid(left = 40, right = 16, top = 30, bottom = 24) |>
     chart_theme()
+}
+
+#' When the last result of a kind is ready (scenario)
+last_result_time <- function(data, model, kind = c("milestone", "kpi", "any")) {
+  kind <- match.arg(kind)
+  ids <- if (kind == "any") data$result$id else data$result$id[data$result$kind == kind]
+  if (!length(ids)) NA_real_ else max(model$ready[ids])
 }

@@ -1,13 +1,14 @@
 test_that("data layer creates the schema and seeds every table", {
   d <- sample_data()
-  expect_named(d, c("process", "kpi", "enabler", "enabler_link", "enabler_dependency", "milestone"))
+  expect_named(d, c("process", "result", "enabler", "result_enabler", "enabler_dependency"))
   expect_equal(nrow(d$process), 6)
   expect_equal(nrow(d$enabler), 16)
-  expect_false("visibility" %in% names(d$kpi))
+  expect_setequal(unique(d$result$kind), c("kpi", "milestone"))
+  expect_equal(sum(d$result$kind == "milestone"), 8)
   expect_true(all(nzchar(d$process$owner)))
   expect_true(all(d$enabler$enabler_group %in% GROUPS$id))
   info <- attr(d, "table_info")
-  expect_equal(info$kpi$rows, nrow(d$kpi))
+  expect_equal(info$result$rows, nrow(d$result))
 })
 
 test_that("import replaces the database content", {
@@ -19,9 +20,9 @@ test_that("import replaces the database content", {
   db_import(con, tabs)
   db_import(con, tabs)
   expect_equal(nrow(db_read_all(con)$enabler), 16)
-  tabs$milestone <- tabs$milestone[1:2, ]
+  tabs$result_enabler <- tabs$result_enabler[1:2, ]
   db_import(con, tabs)
-  expect_equal(nrow(db_read_all(con)$milestone), 2)
+  expect_equal(nrow(db_read_all(con)$result_enabler), 2)
 })
 
 test_that("config reads from CSV and exposes values", {

@@ -7,15 +7,16 @@ CREATE TABLE IF NOT EXISTS process (
   owner       VARCHAR
 );
 
-CREATE TABLE IF NOT EXISTS kpi (
+CREATE TABLE IF NOT EXISTS result (                -- tangible results: KPIs and milestones
   id            VARCHAR PRIMARY KEY,
   process_id    VARCHAR NOT NULL REFERENCES process(id),
+  kind          VARCHAR NOT NULL,                  -- kpi | milestone
   name          VARCHAR NOT NULL,
-  unit          VARCHAR,
-  baseline      DOUBLE,
-  target        DOUBLE,
-  target_year   INTEGER,
-  value_musd    DOUBLE,                            -- annual value at full target, $M
+  due           VARCHAR NOT NULL,                  -- YYYY-MM
+  unit          VARCHAR,                           -- KPI only
+  baseline      DOUBLE,                            -- KPI only
+  target        DOUBLE,                            -- KPI only
+  value_musd    DOUBLE DEFAULT 0,                  -- annual value when achieved, $M
   value_driver  VARCHAR NOT NULL DEFAULT 'none'    -- config key that scales value, or 'none'
 );
 
@@ -33,22 +34,15 @@ CREATE TABLE IF NOT EXISTS enabler (
   scalability    DOUBLE DEFAULT 0                  -- duration response to extra resources: 0 rigid, 1 linear, >1 better than linear
 );
 
-CREATE TABLE IF NOT EXISTS enabler_link (
+CREATE TABLE IF NOT EXISTS result_enabler (        -- explicit: result requires enabler
+  result_id   VARCHAR NOT NULL REFERENCES result(id),
   enabler_id  VARCHAR NOT NULL REFERENCES enabler(id),
-  kpi_id      VARCHAR NOT NULL REFERENCES kpi(id),
   weight      DOUBLE NOT NULL DEFAULT 1,
-  PRIMARY KEY (enabler_id, kpi_id)
+  PRIMARY KEY (result_id, enabler_id)
 );
 
 CREATE TABLE IF NOT EXISTS enabler_dependency (
   enabler_id   VARCHAR NOT NULL REFERENCES enabler(id),
   requires_id  VARCHAR NOT NULL REFERENCES enabler(id),
   PRIMARY KEY (enabler_id, requires_id)
-);
-
-CREATE TABLE IF NOT EXISTS milestone (
-  id              VARCHAR PRIMARY KEY,
-  milestone_date  VARCHAR NOT NULL,                -- YYYY-MM
-  name            VARCHAR NOT NULL,
-  enabler_id      VARCHAR REFERENCES enabler(id)
 );

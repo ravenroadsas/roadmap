@@ -20,13 +20,14 @@ mod_sensitivity_server <- function(id, data, graph, cfg_table) {
       }
     })
 
-    kpi_ids <- reactive(data$kpi$id)
+    result_ids <- reactive(data$result$id)
 
     # time target: per-enabler resources back-calculated from the target date
     solved <- reactive({
-      if (!identical(input$res_mode, "target") || is.null(input$target_q)) return(NULL)
-      solve_target(data, scenario(), as.numeric(input$target_q),
-                   scope = input$target_scope %||% "milestones",
+      mode <- input$res_mode %||% "uniform"
+      if (mode == "uniform" || (mode == "target" && is.null(input$target_q))) return(NULL)
+      solve_target(data, graph, scenario(), as.numeric(input$target_q %||% NA),
+                   scope = if (mode == "due") "due" else input$target_scope %||% "milestones",
                    pull_prereqs = isTRUE(input$pull_prereqs),
                    r_max = max(cfg_table$max[cfg_table$key == "resource_multiplier"], 1))
     })
@@ -42,19 +43,19 @@ mod_sensitivity_server <- function(id, data, graph, cfg_table) {
       run_model(data, graph, b, base)
     })
 
-    output$strip <- shiny::renderUI(summary_strip(data, model(), kpi_ids()))
+    output$strip <- shiny::renderUI(summary_strip(data, model(), result_ids()))
 
     output$flow <- echarts4r::renderEcharts4r({
-      chart_flow(flow_data(model(), base_model(), kpi_ids()))
+      chart_flow(flow_data(model(), base_model(), result_ids()))
     })
     output$tornado <- echarts4r::renderEcharts4r({
-      chart_tornado(tornado_data(data, graph, scenario(), base, cfg_table, kpi_ids(), resources()))
+      chart_tornado(tornado_data(data, graph, scenario(), base, cfg_table, result_ids(), resources()))
     })
     output$ready <- echarts4r::renderEcharts4r({
-      chart_ready(ready_data(data, model(), base_model(), kpi_ids()))
+      chart_ready(ready_data(data, model(), base_model(), result_ids()))
     })
-    output$kpis <- echarts4r::renderEcharts4r({
-      chart_kpis(kpi_value_data(data, model(), base_model(), kpi_ids()))
+    output$results <- echarts4r::renderEcharts4r({
+      chart_results(result_value_data(data, model(), base_model(), result_ids()))
     })
 
     model
