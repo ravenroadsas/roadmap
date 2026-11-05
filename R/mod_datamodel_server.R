@@ -11,11 +11,28 @@ TABLE_NOTES <- list(
 mod_datamodel_server <- function(id, data, cfg_table) {
   moduleServer(id, function(input, output, session) {
     info <- attr(data, "table_info")
+    src <- attr(data, "input")
+
+    output$source <- shiny::renderUI({
+      tags$div(class = "callout source",
+        tags$b("Input workbook: "), tags$code(basename(src$path)),
+        sprintf(" \u00b7 last modified %s \u00b7 one sheet per table below (a README sheet describes every column). ",
+                format(src$modified, "%Y-%m-%d %H:%M")),
+        "Edit the workbook and restart the app to reload it. ",
+        shiny::downloadLink(session$ns("download"), "Download the current data as Excel"), " \u00b7 ",
+        shiny::downloadLink(session$ns("template"), "empty template"))
+    })
+    output$download <- shiny::downloadHandler(
+      filename = function() sprintf("roadmap_input_%s.xlsx", format(Sys.Date(), "%Y%m%d")),
+      content = function(file) write_input_excel(file, data))
+    output$template <- shiny::downloadHandler(
+      filename = "roadmap_input_template.xlsx",
+      content = function(file) write_input_excel(file))
     output$schema <- shiny::renderUI({
       cards <- lapply(names(info), function(t) {
         tags$div(class = "box",
           tags$div(class = "bh", tags$h2(class = "tname", t), tags$span(class = "sp hint", info[[t]]$rows, " rows")),
-          tags$p(TABLE_NOTES[[t]]),
+          tags$p(TABLE_NOTES[[t]], " Sheet ", tags$code(t), "."),
           tags$table(class = "t", tags$tbody(lapply(info[[t]]$fields, function(f) tags$tr(tags$td(tags$code(f)))))))
       })
       cfg_card <- tags$div(class = "box",

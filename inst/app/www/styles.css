@@ -245,3 +245,4 @@ header .tabbar,.tabbable>.nav-tabs{position:sticky;top:0}
 .strip.filtered .stat .s:last-child{color:var(--digital)}
 @media (max-width:1180px){.inds{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:820px){.inds{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-grid{grid-template-columns:minmax(0,1fr)}}
+.callout.source{margin:14px 0 0;max-width:none}

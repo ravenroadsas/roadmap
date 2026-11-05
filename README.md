@@ -31,6 +31,14 @@ config (pin)   (key, value, min, max, low, high, unit)
 
 The three resource types map to columns: money (`capex`, `opex`), manpower and expertise (`fte_internal` for capability built or hired internally, `fte_partner` for allies and contractors).
 
+## Input workbook
+
+All roadmap data comes from one Excel file with one sheet per table: `process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`. Column names go in row 1 and column order doesn't matter. A `README` sheet lists every column with its type, whether it's required, and its default. The scenario assumptions stay in `config.csv`, or on a pin.
+
+- At startup the workbook is validated and loaded into the database, replacing what was there, so the workbook is the source of truth. To reload it, edit it and restart the app.
+- Problems stop the app with one message that lists them all, by sheet, column and row: missing sheets or columns, values that aren't numbers, quarters or months, duplicate IDs, unknown references, dependency cycles. Date conflicts are not errors; they are shown in red.
+- The Data model tab can export the current data, or an empty template, in the same format. `write_input_excel()` does the same from R. That export is what to give the authoring agent as its catalogue.
+
 ## Calculation logic
 
 - **Enabler cost / year** = capex × (1 + overrun), spread over the enabler's (scenario) duration + FTE cost during the build (partner FTE × (1 + partner premium)) + opex from go-live to the horizon.
@@ -45,7 +53,7 @@ The three resource types map to columns: money (`capex`, `opex`), manpower and e
 
 ```
 R/
-  data_access.R          all DB interaction (DuckDB in dev, RSQLite fallback, DBI for SQL Server/Postgres later)
+  data_access.R          all data interaction: Excel input (read, validate, export) and DB (DuckDB in dev, RSQLite fallback, DBI for SQL Server/Postgres later)
   config.R               config from a pin (ROADMAP_PINS_BOARD) or inst/extdata/config.csv
   fct_graph.R            dependency graph, validation, weights, cost allocation, ready dates
   fct_model.R            cost_profile(), value_profile(), run_model(), portfolio(), tornado()
@@ -57,7 +65,7 @@ R/
   mod_overview_*, mod_roadmap_*, mod_sensitivity_*, mod_datamodel_*  (ui / server per tab)
   app_ui.R, app_server.R, run_app.R
 inst/app/www/            styles.css, roadmap.js (timeline, value chain, highlighting, client-side)
-inst/extdata/            seed CSVs, one per table + config.csv
+inst/extdata/            roadmap_input.xlsx (sample data, one sheet per table), roadmap_input_template.xlsx, config.csv
 inst/sql/schema.sql      DDL
 tests/testthat/          unit tests for every function layer
 docs/data_authoring_guide.md  how AI agents must format per-process data
@@ -67,7 +75,7 @@ app.R                    Posit Connect entry point
 ### Run
 
 ```r
-# install.packages(c("shiny", "DBI", "duckdb", "echarts4r", "jsonlite", "pins", "testthat", "pkgload"))
+# install.packages(c("shiny", "DBI", "duckdb", "echarts4r", "jsonlite", "readxl", "writexl", "pins", "testthat", "pkgload"))
 pkgload::load_all(); run_app()        # or: shiny::runApp()
 devtools::test()
 ```
@@ -76,7 +84,8 @@ devtools::test()
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `ROADMAP_DB_PATH` | DuckDB file; seeded from CSV on first run | in-memory |
+| `ROADMAP_INPUT_XLSX` | Input workbook, one sheet per table | `inst/extdata/roadmap_input.xlsx` |
+| `ROADMAP_DB_PATH` | DuckDB file (reloaded from the workbook at every start) | in-memory |
 | `ROADMAP_DB_DRIVER` | `duckdb`, `sqlite` or `auto` | `auto` |
 | `ROADMAP_PINS_BOARD` | `connect` or `folder` to read config from a pin | CSV |
 | `ROADMAP_PINS_PATH` | folder for a folder board | |

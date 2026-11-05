@@ -4,7 +4,7 @@ You are helping build a digital transformation roadmap for 2026–2029. The comp
 
 For each process you will be given:
 - the process ID and name, and whatever source material is available (interviews, documents, data)
-- the **current catalogue** of KPIs, enablers, dependencies and milestones already in the database, including those from processes you have already done
+- the **current catalogue**: the latest workbook, exported from the app (Data model tab → "Download the current data as Excel"), with the KPIs, enablers, dependencies and milestones already in it, including those from processes you have already done
 
 Your output is loaded straight into a database and a dashboard. Rows in the wrong format get rejected. Follow the format exactly, and keep your reasoning in the notes section (see [Output format](#output-format)), never in the data rows.
 
@@ -38,7 +38,14 @@ The dashboard calculates the following. You don't compute any of it, but your nu
 
 ## 2. Tables and field rules
 
-All files are UTF-8 CSV with a header row and comma separators. Use a dot as the decimal point and no thousands separators. Quote any text that contains a comma. Use exactly the columns listed, in the same order. Don't add columns.
+The roadmap data lives in one **Excel workbook** (`roadmap_input.xlsx`) with **one sheet per table**. Each sheet is named exactly like the table (`process`, `kpi`, `enabler`, `enabler_link`, `enabler_dependency`, `milestone`), and the column names are in row 1. A `README` sheet describes every column. The app reads the workbook at startup and stops with a list of problems (sheet, column, row) if anything is wrong.
+
+Rules for every sheet:
+- Use exactly the column names listed below, in lower case. Column order doesn't matter. Extra columns are ignored, so don't put information there that should be in the notes.
+- One row per record and no merged cells. Fully empty rows are skipped.
+- Numbers must be real numbers, with no units, `$` signs or thousands separators.
+- Quarters are text like `2027Q3`, and months are text like `2027-03`.
+- Optional columns may be left empty; they get their default (see the `README` sheet).
 
 ### 2.1 `process`
 
@@ -214,36 +221,42 @@ Infrastructure and data foundations (cloud, connectivity, data platform, master 
 
 ## 4. Output format
 
-Reply with exactly these sections, in this order. Include only **new or changed rows**, never the whole database. Leave out a table section if it has no rows.
+Your deliverable has two parts.
+
+**A. The rows.** Include only **new or changed rows**, never the whole database. These are appended to the matching sheets of the workbook, and changed rows replace the existing row with the same ID.
+- If you can create files, return an `.xlsx` workbook with the same sheet names and columns as the input file. Leave out sheets that have no rows.
+- Otherwise, return one CSV block per sheet, titled with the sheet name, so the rows can be pasted into that sheet. Use a header row and comma separators, and quote any text that contains a comma.
+
+**B. The notes**, in Markdown.
 
 ````markdown
 # Process <id> – <name>
 
-## kpi.csv
+## Sheet: kpi
 ```csv
 id,process_id,name,unit,baseline,target,target_year,value_musd,value_driver
 ...
 ```
 
-## enabler.csv
+## Sheet: enabler
 ```csv
 id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,scalability
 ...
 ```
 
-## enabler_link.csv
+## Sheet: enabler_link
 ```csv
 enabler_id,kpi_id,weight
 ...
 ```
 
-## enabler_dependency.csv
+## Sheet: enabler_dependency
 ```csv
 enabler_id,requires_id
 ...
 ```
 
-## milestone.csv
+## Sheet: milestone
 ```csv
 id,milestone_date,name,enabler_id
 ...
@@ -261,11 +274,9 @@ id,milestone_date,name,enabler_id
 - **Open questions**: for the process owner.
 ````
 
----
-
 ## 5. Checklist before you answer
 
-- [ ] Every column is present, in order, with no extra columns. Numbers have no units, `$` signs or thousands separators.
+- [ ] Each sheet uses exactly the listed column names. Numbers have no units, `$` signs or thousands separators.
 - [ ] Every `process_id`, `enabler_id`, `kpi_id` and `requires_id` points to a row in your output or in the catalogue you were given.
 - [ ] Every KPI has at least one link. Every new enabler has at least one link or is required by an enabler that has one.
 - [ ] Dates use `YYYYQn` (enablers) or `YYYY-MM` (milestones), within 2026–2029.

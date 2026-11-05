@@ -10,13 +10,18 @@ test_that("data layer creates the schema and seeds every table", {
   expect_equal(info$kpi$rows, nrow(d$kpi))
 })
 
-test_that("seeding is idempotent", {
+test_that("import replaces the database content", {
   skip_if_not(requireNamespace("RSQLite", quietly = TRUE) || requireNamespace("duckdb", quietly = TRUE))
+  tabs <- read_input_excel(input_path())
   con <- db_connect(":memory:")
   on.exit(db_disconnect(con))
   db_init(con)
-  db_init(con)
+  db_import(con, tabs)
+  db_import(con, tabs)
   expect_equal(nrow(db_read_all(con)$enabler), 16)
+  tabs$milestone <- tabs$milestone[1:2, ]
+  db_import(con, tabs)
+  expect_equal(nrow(db_read_all(con)$milestone), 2)
 })
 
 test_that("config reads from CSV and exposes values", {

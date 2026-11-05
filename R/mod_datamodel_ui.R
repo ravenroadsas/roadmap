@@ -11,6 +11,7 @@ mod_datamodel_ui <- function(id) {
                "\u2192", tags$span(class = "n", "process"),
                tags$span(class = "hint", style = "margin-left:10px",
                          "milestone \u2192 enabler \u00b7 enabler_dependency \u2192 enabler"))),
+    shiny::uiOutput(ns("source")),
     shiny::uiOutput(ns("schema"))
   )
 }
