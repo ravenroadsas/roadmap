@@ -71,7 +71,11 @@ kpi_tree <- function(data, model, kpi_id) {
     sub = ifelse(en %in% ch$direct,
                  sprintf("direct %s \u00b7 %s", fmt_pct(g$weight[en, kpi_id]), fmt_musd(alloc)),
                  sprintf("foundation \u00b7 %s", fmt_musd(alloc))),
-    milestones = vapply(en, function(i) paste(ms$id[ms$enabler_id == i], collapse = " "), ""),
+    milestones = vapply(en, function(i) {
+      m <- ms$id[ms$enabler_id == i]
+      lab <- paste(m, collapse = " ")
+      if (nchar(lab) > 8) sprintf("%d milestones", length(m)) else lab
+    }, ""),
     stringsAsFactors = FALSE)
   nodes <- nodes[order(nodes$col, match(nodes$group, GROUPS$id), nodes$label), ]
   nodes <- rbind(nodes,
@@ -132,7 +136,7 @@ tree_svg <- function(tree, col_titles = NULL, node_w = 200, node_h = 46, gap_x =
       r$x + node_w - 10, r$y + 5, r$x + node_w - 18, r$y + 13, esc(r$milestones)) else ""
     sprintf('<g class="gl-node %s"><title>%s</title><rect x="%.1f" y="%.1f" width="%d" height="%d" rx="4"/>%s<text class="gl-t" x="%.1f" y="%.1f">%s</text><text class="gl-s" x="%.1f" y="%.1f">%s</text>%s</g>',
             r$type, esc(paste(r$label, "\u2014", r$sub)), r$x, r$y, node_w, node_h, bar,
-            r$x + 10, r$y + 19, esc(trunc(r$label, 30)), r$x + 10, r$y + 35, esc(trunc(r$sub, 33)), ms)
+            r$x + 10, r$y + 19, esc(trunc(r$label, if (nzchar(r$milestones)) 30 - ceiling(nchar(r$milestones) * 0.9) - 2 else 30)), r$x + 10, r$y + 35, esc(trunc(r$sub, 33)), ms)
   }, "")
   titles <- if (is.null(col_titles)) "" else paste(vapply(seq_len(ncol), function(c) sprintf(
     '<text class="gl-col" x="%.1f" y="14">%s</text>', 2 + (c - 1) * (node_w + gap_x), esc(col_titles[c])), ""), collapse = "")
@@ -142,10 +146,14 @@ tree_svg <- function(tree, col_titles = NULL, node_w = 200, node_h = 46, gap_x =
 }
 
 #' Column titles for a KPI tree
+#'
+#' Left columns hold prerequisites by level. A direct enabler that is also
+#' a prerequisite of another direct enabler sits there too, so they are
+#' titled "Prerequisites" rather than "Foundations"; each box says its role.
 tree_titles <- function(tree) {
   ncol <- max(tree$nodes$col) + 1
-  n_found <- ncol - 3
-  c(if (n_found > 0) paste0("Foundation", if (n_found > 1) paste0(" (level ", n_found:1, ")") else ""),
+  n_pre <- ncol - 3
+  c(if (n_pre > 0) paste0("Prerequisites", if (n_pre > 1) paste0(" (level ", n_pre:1, ")") else ""),
     "Direct enablers", "KPI on a process", "Value")
 }
 
