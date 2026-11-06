@@ -7,8 +7,10 @@
 # Enterprise: swap db_connect() for an odbc / RPostgres connection; the rest
 # uses plain DBI + portable SQL, so callers do not change.
 
-ROADMAP_TABLES <- c("process", "result", "enabler", "result_enabler",
+ROADMAP_TABLES <- c("process", "result", "result_process", "enabler", "result_enabler",
                     "enabler_dependency")
+# sheets that may be left out of the workbook (read as empty)
+OPTIONAL_SHEETS <- "result_process"
 
 #' Open a database connection
 #'
@@ -129,6 +131,10 @@ INPUT_SPEC <- list(
     fte_internal = list("num", FALSE, 0, "Average internal FTE during the build"),
     fte_partner = list("num", FALSE, 0, "Average partner / contractor FTE during the build"),
     scalability = list("num", FALSE, 0, "0 rigid, 1 linear, >1 better than linear")),
+  result_process = list(
+    result_id = list("chr", TRUE, NA, "Result shared by several processes (optional sheet)"),
+    process_id = list("chr", TRUE, NA, "A process that shares it; list the lead process too"),
+    share = list("num", FALSE, 1, "Relative share of the result's value and cost (normalised per result)")),
   result_enabler = list(
     result_id = list("chr", TRUE, NA, "Result ID"),
     enabler_id = list("chr", TRUE, NA, "Enabler the result requires"),
@@ -137,7 +143,7 @@ INPUT_SPEC <- list(
     enabler_id = list("chr", TRUE, NA, "Enabler that needs something"),
     requires_id = list("chr", TRUE, NA, "Enabler it needs"))
 )
-INPUT_KEYS <- list(process = "id", result = "id", enabler = "id",
+INPUT_KEYS <- list(process = "id", result = "id", result_process = c("result_id", "process_id"), enabler = "id",
                    result_enabler = c("result_id", "enabler_id"),
                    enabler_dependency = c("enabler_id", "requires_id"))
 
@@ -182,11 +188,15 @@ read_input_excel <- function(path = input_path()) {
   out <- list()
   for (t in ROADMAP_TABLES) {
     spec <- INPUT_SPEC[[t]]
-    if (!t %in% sheets) {
+    if (!t %in% sheets && !t %in% OPTIONAL_SHEETS) {
       probs <- c(probs, sprintf("sheet '%s' is missing", t))
       next
     }
-    df <- as.data.frame(readxl::read_excel(path, sheet = t, col_types = "list", .name_repair = "minimal"))
+    df <- if (t %in% sheets) {
+      as.data.frame(readxl::read_excel(path, sheet = t, col_types = "list", .name_repair = "minimal"))
+    } else {
+      as.data.frame(stats::setNames(replicate(length(spec), character(0), simplify = FALSE), names(spec)))
+    }
     names(df) <- tolower(trimws(names(df)))
     df[] <- lapply(df, function(col) {
       vapply(col, function(v) if (is.null(v) || length(v) == 0) NA_character_ else

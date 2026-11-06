@@ -2,6 +2,7 @@ TABLE_NOTES <- list(
   process = "Business processes being transformed. Each owns a set of results.",
   result = "Tangible results of a process: KPIs (baseline -> target) and milestones. Each has a due date and an optional annual value, scaled by the config key named in value_driver.",
   enabler = "Investment item in one of 4 groups. Carries the resource types: money (capex, opex), expertise and manpower (internal vs partner FTE).",
+  result_process = "Optional: a result shared by several processes. List every process that shares it, including the lead (result.process_id), with a share; value and cost are split by share. Results not listed belong 100% to their lead process.",
   result_enabler = "Explicit: which enablers each result requires. The weight drives value attribution and cost allocation.",
   enabler_dependency = "Prerequisites between enablers. Must be acyclic. Foundations share their cost across dependents."
 )

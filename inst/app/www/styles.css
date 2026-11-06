@@ -301,3 +301,7 @@ table.t tr.late td{color:var(--neg)}
 .gl-node.late rect{stroke:var(--neg);stroke-width:2}
 .gl-cards.gl7{grid-template-columns:repeat(4,minmax(0,1fr))}
 .gl-mst.late{fill:var(--neg);font-weight:700}
+/* shared results */
+.res.shared path,.res.shared circle{stroke-dasharray:2 1.5;fill:var(--panel)}
+.res.shared.on path,.res.shared.on circle{fill:var(--hl)}
+.shared-tag{font:500 9.5px var(--mono);color:var(--digital)}

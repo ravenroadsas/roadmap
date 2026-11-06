@@ -26,8 +26,9 @@ Roadmap filters (process, process owner, result type, enabler group, search) dri
 
 ```
 process            (id, name, owner)
-result             (id, process_id → process, kind [kpi|milestone], name, due [YYYY-MM],
+result             (id, process_id → process (lead), kind [kpi|milestone], name, due [YYYY-MM],
                     unit, baseline, target (KPI only), value_musd, value_driver [oil_price|fte_cost|none])
+result_process     (result_id → result, process_id → process, share)   -- optional: result shared by several processes
 enabler            (id, enabler_group [people|digital|data|infra], subcategory, name, start_q, end_q,
                     capex_musd, opex_musd_yr, fte_internal, fte_partner, scalability)
 result_enabler     (result_id → result, enabler_id → enabler, weight)   -- explicit: result requires enabler
@@ -39,7 +40,7 @@ The three resource types map to columns: money (`capex`, `opex`), manpower and e
 
 ## Input workbook
 
-All roadmap data comes from one Excel file with one sheet per table: `process`, `result`, `enabler`, `result_enabler`, `enabler_dependency`. Column names go in row 1 and column order doesn't matter. A `config` sheet holds the scenario assumptions: base value, slider range and step, low and high for the tornado, % formatting, and whether each one is used in the tornado. A `README` sheet lists every column with its type, whether it's required, and its default. On Posit Connect, a pin can override the config sheet.
+All roadmap data comes from one Excel file with one sheet per table: `process`, `result`, `result_process` (optional), `enabler`, `result_enabler`, `enabler_dependency`. Column names go in row 1 and column order doesn't matter. A `config` sheet holds the scenario assumptions: base value, slider range and step, low and high for the tornado, % formatting, and whether each one is used in the tornado. A `README` sheet lists every column with its type, whether it's required, and its default. On Posit Connect, a pin can override the config sheet.
 
 - At startup the workbook is validated and loaded into the database, replacing what was there, so the workbook is the source of truth. To reload it, edit it and restart the app.
 - Problems stop the app with one message that lists them all, by sheet, column and row: missing sheets or columns, values that aren't numbers, quarters or months, duplicate IDs, unknown references, dependency cycles. Date conflicts are not errors; they are shown in red.
@@ -53,6 +54,7 @@ All roadmap data comes from one Excel file with one sheet per table: `process`, 
 - **Late dependencies** (red arrows: a prerequisite going live after the enabler that needs it) are counted on the scenario schedule, not just the plan. The count appears on the timeline, the detail panel, the Overview and the timing panel.
 - **Result ready date** = latest (scenario) go-live across its required enablers and all their prerequisites. A result is **late** when that is after the end of its due month.
 - **Date issues** (an end before the start, or a prerequisite going live after the enabler that needs it) don't block loading. They're shown in red on the timeline, value chain and detail panel. Missing references and dependency cycles still stop the app at startup.
+- **Shared results**: a result belongs to its lead process (`result.process_id`) unless `result_process` lists it; then its value and allocated cost are split across the listed processes by share (normalised). It appears in every sharing process: lanes (dashed outline outside the lead), value chain, process filter, process detail and Overview. With a process filter, the top bar counts each shared result at the selected processes' share.
 - **Result value / year** = `value_musd` × realisation × driver factor (oil price / base or FTE cost / base) × adoption ramp (starts after the adoption lag, linear over the ramp years).
 - **Cost allocation**: each enabler's cost is split across the results that require it, by weight; foundation enablers pass their cost to the results of their dependents, so shared infrastructure is spread rather than double-counted. A milestone with no value still carries its share of cost.
 - **Portfolio**: NPV at the discount rate, ROI = (value − cost) / cost, payback = first year cumulative net ≥ 0.

@@ -79,6 +79,7 @@ An enabler is **required** by a result when the result lists it, and a **foundat
 | **Value** | $M per year once a result is achieved. The only place money comes in. | What is the result worth? | `result.value_musd` |
 | **Enabler** | Something we invest in and build. The only element that consumes money and staff. | What do we build, when, for how much? | sheet `enabler` |
 | **Foundation** | A prerequisite of a required enabler. Its cost is shared by everything built on it. | What has to exist first? | derived from `enabler_dependency` |
+| **Shared result** | A result split across several processes by share; the lead process is accountable. | | sheet `result_process` |
 | **Requirement (weight)** | A result requires an enabler, by this much relative to its other required enablers. | | sheet `result_enabler` |
 | **Dependency** | One enabler needs another to be live before it can go live. | | sheet `enabler_dependency` |
 | **Due date vs ready date** | When the result should be achieved vs when its enablers make it possible. | | `result.due` / computed |
@@ -100,7 +101,7 @@ The dashboard calculates the following. You don't compute any of it, but your nu
 
 ## 2. Tables and field rules
 
-The roadmap data lives in one **Excel workbook** with **one sheet per table**: `process`, `result`, `enabler`, `result_enabler`, `enabler_dependency`. The column names are in row 1. A `config` sheet holds the scenario assumptions; it's maintained by the roadmap team, so never output rows for it. A `README` sheet describes every column. The app reads the workbook at startup and stops with a list of problems (sheet, column, row) if anything is wrong.
+The roadmap data lives in one **Excel workbook** with **one sheet per table**: `process`, `result`, `result_process` (optional), `enabler`, `result_enabler`, `enabler_dependency`. The column names are in row 1. A `config` sheet holds the scenario assumptions; it's maintained by the roadmap team, so never output rows for it. A `README` sheet describes every column. The app reads the workbook at startup and stops with a list of problems (sheet, column, row) if anything is wrong.
 
 Rules for every sheet:
 - Use exactly the column names listed below, in lower case. Column order doesn't matter. Extra columns are ignored, so don't put information there that should be in the notes.
@@ -137,7 +138,7 @@ Current processes:
 | column | type | rules |
 |---|---|---|
 | `id` | text | `K-<process>-<nn>` for a KPI, `M-<process>-<nn>` for a milestone, e.g. `K-P04-01`, `M-P04-02`. Unique. |
-| `process_id` | text | Must be a process `id`. Every result belongs to exactly one process. |
+| `process_id` | text | Must be a process `id`: the **lead** process, whose owner is accountable for the result. If other processes share it, list them in `result_process` (2.3). |
 | `kind` | text | `kpi` or `milestone` |
 | `name` | text | KPI: what is measured. Milestone: the observable outcome. Max 50 characters. |
 | `due` | month | `YYYY-MM`, when the result should be achieved (KPI: when the target is due) |
@@ -145,7 +146,7 @@ Current processes:
 | `baseline` | number | KPI only, **required** for KPIs: current value in `unit` |
 | `target` | number | KPI only, **required** for KPIs: value at full adoption |
 | `value_musd` | number | **Annual** value in **$ millions** once achieved, before any realisation haircut. 0 or empty for a purely enabling milestone. |
-| `value_driver` | text | A config key that scales the value: `oil_price`, `fte_cost`, or `none` (see 2.6) |
+| `value_driver` | text | A config key that scales the value: `oil_price`, `fte_cost`, or `none` (see 2.7) |
 
 Rules:
 - Use 2 to 6 results per process: the KPIs that show the process improved, and the milestones that mark the step changes management will check.
@@ -155,7 +156,31 @@ Rules:
 - **Count value once.** If a milestone is a step towards a KPI (e.g. *250 wells per engineer* towards *employees per 100 wells*), put the value on the KPI and 0 on the milestone, or split it explicitly and say so in the notes.
 - Set `due` from the business commitment, not from the enabler dates. If the enablers make it late, the app shows it; explain the gap in the notes.
 
-### 2.3 `enabler`
+### 2.3 `result_process` (optional: results shared by several processes)
+
+Use this sheet only when one result is genuinely shared: several processes contribute to it and each should see it, and its value and cost, in its own figures. Results not listed here belong 100% to their lead process.
+
+| column | type | rules |
+|---|---|---|
+| `result_id` | text | Must be a result `id` |
+| `process_id` | text | A process that shares the result. **List the lead process too.** |
+| `share` | number | Relative share of the result's value and cost for this process. Normalised per result, so `2, 1, 1` means 50% / 25% / 25%. Default 1 (equal split). |
+
+Rules:
+- Only share a result when the processes really achieve it together. If each process finishes its own part at its own date, create one result per process instead.
+- Base the shares on who carries the work or the benefit, and explain them in the notes.
+- A shared result appears in each sharing process's lane on the timeline. In every process except the lead it is drawn with a dashed outline.
+
+Example: *250 wells per engineer* led by reservoir surveillance, shared with production surveillance and drilling.
+
+```csv
+result_id,process_id,share
+M-X-04,P04,0.4
+M-X-04,P05,0.4
+M-X-04,P06,0.2
+```
+
+### 2.4 `enabler`
 
 | column | type | rules |
 |---|---|---|
@@ -169,7 +194,7 @@ Rules:
 | `opex_musd_yr` | number | Running cost per year after go-live, in $M |
 | `fte_internal` | number | Average internal people (FTE) working on the build: expertise or manpower that is **built or hired internally** |
 | `fte_partner` | number | Average FTE from **allies, vendors and contractors** during the build |
-| `scalability` | number 0–2 | How the duration responds to **more resources**: 0 rigid, 1 linear, >1 better than linear. See 2.3.1. |
+| `scalability` | number 0–2 | How the duration responds to **more resources**: 0 rigid, 1 linear, >1 better than linear. See 2.4.1. |
 
 Enabler groups and typical subcategories:
 
@@ -186,7 +211,7 @@ Rules:
 - Don't put the same money in two places: `capex_musd` covers vendor implementation, and `fte_partner` covers people time from partners. Keep them separate and estimate each.
 - Builds usually take 2 to 8 quarters. Anything longer than 8 quarters should be split into phases, with each phase as its own enabler linked by a dependency.
 
-#### 2.3.1 Scalability
+#### 2.4.1 Scalability
 
 `scalability` (s) describes what happens to the duration when more resources (people and budget) are put on the enabler. The start date never moves; only the end moves.
 
@@ -220,7 +245,7 @@ Typical values:
 
 Explain any value outside these ranges, and any value above 1, in the notes.
 
-### 2.4 `result_enabler` (which enablers each result requires)
+### 2.5 `result_enabler` (which enablers each result requires)
 
 | column | type | rules |
 |---|---|---|
@@ -230,11 +255,11 @@ Explain any value outside these ranges, and any value above 1, in the notes.
 
 Rules:
 - Every result needs at least one row here. A milestone usually requires one or two enablers; a KPI often several.
-- List the enablers the result **directly** needs. Don't list their prerequisites again: dependencies (2.5) bring them in, and they count as foundations automatically, including in the ready date.
+- List the enablers the result **directly** needs. Don't list their prerequisites again: dependencies (2.6) bring them in, and they count as foundations automatically, including in the ready date.
 - Every required enabler sets the ready date. A small contribution (say 10%) from a late enabler still makes the whole result late. If the result can be achieved without it, don't list it, or create a separate result for the later step.
 - An enabler may be required by results of other processes.
 
-### 2.5 `enabler_dependency`
+### 2.6 `enabler_dependency`
 
 | column | type | rules |
 |---|---|---|
@@ -246,7 +271,7 @@ Rules:
 - No cycles: A needs B and B needs A is invalid, and so is any longer loop.
 - List only direct prerequisites. If A needs B and B needs C, don't also add A needs C.
 
-### 2.6 `config` sheet (read only)
+### 2.7 `config` sheet (read only)
 
 You don't change the config sheet. Use only these keys as `value_driver`:
 
@@ -295,6 +320,12 @@ id,process_id,kind,name,due,unit,baseline,target,value_musd,value_driver
 ...
 ```
 
+## Sheet: result_process (only for shared results)
+```csv
+result_id,process_id,share
+...
+```
+
 ## Sheet: enabler
 ```csv
 id,enabler_group,subcategory,name,start_q,end_q,capex_musd,opex_musd_yr,fte_internal,fte_partner,scalability
@@ -332,7 +363,7 @@ enabler_id,requires_id
 - [ ] Every `process_id`, `result_id`, `enabler_id` and `requires_id` points to a row in your output or in the catalogue you were given.
 - [ ] `kind` is `kpi` or `milestone`; every KPI has `unit`, `baseline` and `target`; every result has a `due` month.
 - [ ] Every result requires at least one enabler. Every new enabler is required by a result, or is a prerequisite of an enabler that is.
-- [ ] Value is counted once across a process's KPIs and milestones.
+- [ ] Value is counted once across a process's KPIs and milestones. A shared result lists its lead process in `result_process`, and the shares are explained.
 - [ ] Dates use `YYYYQn` (enablers) or `YYYY-MM` (results), within 2026–2030.
 - [ ] There are no dependency cycles. Late results and date conflicts are allowed, but each one is explained in the notes.
 - [ ] Every enabler has a `scalability`, and values outside the typical ranges or above 1 are explained.

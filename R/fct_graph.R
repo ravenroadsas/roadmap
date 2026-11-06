@@ -45,6 +45,17 @@ graph_validate <- function(data) {
       !(dep$enabler_id %in% e & dep$requires_id %in% e)],
     sprintf("result %s requires no enabler", r$id)[!r$id %in% re$result_id]
   )
+  rp <- data$result_process
+  if (!is.null(rp) && nrow(rp)) {
+    lead_missing <- setdiff(unique(rp$result_id[rp$result_id %in% r$id]),
+                            rp$result_id[rp$process_id == r$process_id[match(rp$result_id, r$id)]])
+    probs <- c(probs,
+      sprintf("result_process %s-%s: unknown result", rp$result_id, rp$process_id)[!rp$result_id %in% r$id],
+      sprintf("result_process %s-%s: unknown process", rp$result_id, rp$process_id)[!rp$process_id %in% data$process$id],
+      sprintf("result_process %s-%s: share must be > 0", rp$result_id, rp$process_id)[!(rp$share > 0)],
+      sprintf("result_process %s: list its lead process %s too", lead_missing,
+              r$process_id[match(lead_missing, r$id)]))
+  }
   # cycle detection by repeatedly removing enablers with no prerequisites left
   remaining <- dep[dep$enabler_id %in% e & dep$requires_id %in% e, ]
   nodes <- e
@@ -106,6 +117,7 @@ build_graph <- function(data) {
 
   list(ids = ids, results = rids, prereq = prereq, dependents = dependents,
        weight = wn, alloc = alloc, chains = chains, ready = ready,
+       share = process_shares(data),
        issues = date_issues(data))
 }
 
@@ -184,3 +196,31 @@ date_issues <- function(data, end = NULL) {
   rownames(out) <- NULL
   out
 }
+
+#' Share of each result held by each process (result x process, rows sum to 1)
+#'
+#' A result belongs to its lead process (result.process_id) unless the
+#' optional result_process sheet lists it: then it is split across the
+#' listed processes by share.
+process_shares <- function(data) {
+  r <- data$result
+  pids <- data$process$id
+  m <- matrix(0, nrow(r), length(pids), dimnames = list(r$id, pids))
+  m[cbind(r$id, r$process_id)] <- 1
+  rp <- data$result_process
+  if (!is.null(rp) && nrow(rp)) {
+    rp <- rp[rp$result_id %in% r$id & rp$process_id %in% pids, ]
+    m[unique(rp$result_id), ] <- 0
+    m[cbind(rp$result_id, rp$process_id)] <- rp$share
+  }
+  m / pmax(rowSums(m), 1e-12)
+}
+
+#' Weight of each result for a set of processes (sum of their shares)
+process_weights <- function(graph, result_ids, process_ids) {
+  rowSums(graph$share[result_ids, intersect(process_ids, colnames(graph$share)), drop = FALSE])
+}
+
+#' Results a process holds (any share), and the processes of a result
+results_of_process <- function(graph, pid) rownames(graph$share)[graph$share[, pid] > 0]
+processes_of_result <- function(graph, rid) colnames(graph$share)[graph$share[rid, ] > 0]

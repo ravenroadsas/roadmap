@@ -17,7 +17,7 @@ filtered_processes <- function(data, filters) {
 filtered_result_ids <- function(data, graph, filters) {
   k <- data$result
   e <- data$enabler
-  keep <- k$process_id %in% filtered_processes(data, filters) &
+  keep <- process_weights(graph, k$id, filtered_processes(data, filters)) > 0 &
     k$kind %in% (filters$kind %||% c("kpi", "milestone"))
   q <- tolower(trimws(filters$query %||% ""))
   if (nzchar(q)) {
@@ -77,9 +77,12 @@ viz_payload <- function(data, model, filters, ns_prefix = "") {
     prereq = g$prereq,
     issues = model$issues,
     processes = data.frame(id = data$process$id, name = data$process$name,
-                           show = data$process$id %in% k$process_id[k_show]),
+                           show = colSums(g$share[k$id[k_show], , drop = FALSE]) > 0 &
+                             data$process$id %in% procs),
     results = data.frame(
       id = k$id, process = k$process_id, kind = k$kind, name = k$name, unit = k$unit,
+      procs = I(lapply(k$id, function(i) processes_of_result(g, i))),
+      shares = I(lapply(k$id, function(i) unname(round(g$share[i, processes_of_result(g, i)], 3)))),
       baseline = k$baseline, target = k$target, due = k$due,
       t_due = due_to_time(k$due), t_ready = unname(model$ready[k$id]),
       late = k$id %in% model$late$result_id,

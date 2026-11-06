@@ -24,17 +24,18 @@ enabler_cost_table <- function(data, model) {
 process_table <- function(data, model) {
   rows <- lapply(seq_len(nrow(data$process)), function(i) {
     pid <- data$process$id[i]
-    ks <- data$result$id[data$result$process_id == pid]
+    ks <- results_of_process(model$graph, pid)
     kind <- data$result$kind[match(ks, data$result$id)]
+    w <- model$graph$share[ks, pid]
     if (!length(ks)) {
       return(data.frame(id = pid, name = data$process$name[i], owner = data$process$owner[i],
-                        kpis = 0L, milestones = 0L, late = 0L, run_rate = 0, value = 0, cost = 0, npv = 0, roi = NA_real_,
+                        kpis = 0L, milestones = 0L, shared = 0L, late = 0L, run_rate = 0, value = 0, cost = 0, npv = 0, roi = NA_real_,
                         first_value = NA_real_, full_value = NA_real_))
     }
-    p <- portfolio(model, ks)
+    p <- portfolio(model, ks, w)
     r <- model$ready[ks] + model$cfg$adoption_delay
     data.frame(id = pid, name = data$process$name[i], owner = data$process$owner[i],
-               kpis = sum(kind == "kpi"), milestones = sum(kind == "milestone"),
+               kpis = sum(kind == "kpi"), milestones = sum(kind == "milestone"), shared = sum(w < 1 - 1e-9),
                late = sum(ks %in% model$late$result_id), run_rate = p$run_rate, value = p$total_value,
                cost = p$total_cost, npv = p$npv, roi = p$roi,
                first_value = min(r), full_value = max(r) + model$cfg$ramp_years)

@@ -20,16 +20,16 @@ function index(p){
   EN={};RS={};DEP={};PRE={};
   p.enablers.forEach(e=>{EN[e.id]=e;PRE[e.id]=arr(p.prereq[e.id]);DEP[e.id]=[]});
   p.enablers.forEach(e=>PRE[e.id].forEach(x=>DEP[x]&&DEP[x].push(e.id)));
-  p.results.forEach(r=>RS[r.id]=r);
+  p.results.forEach(r=>{r.procs=arr(r.procs);r.shares=arr(r.shares);RS[r.id]=r});
 }
 function walk(ids,next){const out=new Set(),st=[...ids];while(st.length){const id=st.pop();(next[id]||[]).forEach(n=>{if(!out.has(n)){out.add(n);st.push(n)}})}return out}
 
 function highlight(){
   const s=S.sel,p=S.p;if(!s||!p)return null;let direct,en,res,proc;
-  if(s.type==='result'){direct=new Set(p.links.filter(l=>l.result===s.id).map(l=>l.enabler));en=new Set([...direct,...walk(direct,PRE)]);res=new Set([s.id]);proc=new Set([RS[s.id].process])}
+  if(s.type==='result'){direct=new Set(p.links.filter(l=>l.result===s.id).map(l=>l.enabler));en=new Set([...direct,...walk(direct,PRE)]);res=new Set([s.id]);proc=new Set(RS[s.id].procs)}
   else if(s.type==='enabler'){const down=walk([s.id],DEP);direct=new Set([s.id]);en=new Set([s.id,...walk([s.id],PRE),...down]);
-    res=new Set(p.links.filter(l=>l.enabler===s.id||down.has(l.enabler)).map(l=>l.result));proc=new Set([...res].map(k=>RS[k]&&RS[k].process))}
-  else{res=new Set(p.results.filter(k=>k.process===s.id).map(k=>k.id));direct=new Set(p.links.filter(l=>res.has(l.result)).map(l=>l.enabler));
+    res=new Set(p.links.filter(l=>l.enabler===s.id||down.has(l.enabler)).map(l=>l.result));proc=new Set([...res].flatMap(k=>RS[k]?RS[k].procs:[]))}
+  else{res=new Set(p.results.filter(k=>k.procs.includes(s.id)).map(k=>k.id));direct=new Set(p.links.filter(l=>res.has(l.result)).map(l=>l.enabler));
     en=new Set([...direct,...walk(direct,PRE)]);proc=new Set([s.id])}
   return{direct,en,res,proc}}
 
@@ -42,7 +42,7 @@ function renderResults(H){
     const what=k.kind==='kpi'?`<span class="mono">${fmtN(k.baseline,k.unit)} → ${fmtN(k.target,k.unit)}</span>·`:'';
     const due=`<span class="mono${k.late?' neg':''}">due ${esc(k.due)}${k.late?' ⚠ ready '+qlab(k.t_ready):''}</span>`;
     return `<button class="kcard ${cls}${k.late?' late':''}" data-sel="result:${k.id}"><span class="ktop"><span class="kn"><span class="ktag ${k.kind}">${KIND[k.kind]}</span> ${esc(k.name)}</span><span class="kv">${k.run>0?fmtM(k.run)+'/yr':''}</span></span>
-      <span class="km"><span>${esc(k.process_name)}</span>·${what}${due}</span></button>`}).join('')||'<div class="fsec hint">No result matches the filters.</div>'}
+      <span class="km"><span>${esc(k.process_name)}${k.procs.length>1?' <span class="shared-tag">+'+(k.procs.length-1)+' shared</span>':''}</span>·${what}${due}</span></button>`}).join('')||'<div class="fsec hint">No result matches the filters.</div>'}
 
 function legend(extra){q('.rm-legend').innerHTML=S.p.groups.map(g=>`<span><i class="dot ${g.id}"></i>${esc(g.name)}</span>`).join('')+extra}
 
@@ -55,15 +55,16 @@ function renderTimeline(H){
   // results: one lane per process, KPIs (circle) and milestones (diamond) at their due date
   const shownR=p.results.filter(r=>r.show);
   body.push(`<text class="t-grp" x="0" y="${y+8}">Results (due date)</text><line class="gl" x1="0" x2="${W}" y1="${y+14}" y2="${y+14}"/>`);y+=20;
-  p.processes.filter(pr=>shownR.some(r=>r.process===pr.id)).forEach(pr=>{const cy=y+9;
+  p.processes.filter(pr=>shownR.some(r=>r.procs.includes(pr.id))).forEach(pr=>{const cy=y+9;
     const pcls=H?(H.proc.has(pr.id)?'':'off'):'';
     body.push(`<text class="t-lbl lane ${pcls}" x="14" y="${cy+4}" data-sel="process:${pr.id}" data-tip="<b>${esc(pr.name)}</b>">${esc(pr.name.length>32?pr.name.slice(0,31)+'…':pr.name)}</text><line class="lane-l" x1="${L}" x2="${W-R}" y1="${cy}" y2="${cy}"/>`);
-    shownR.filter(r=>r.process===pr.id).forEach(r=>{const xd=x(r.t_due);let cls=H?(H.res.has(r.id)?'on':'off'):'';
+    shownR.filter(r=>r.procs.includes(pr.id)).forEach(r=>{const xd=x(r.t_due);let cls=H?(H.res.has(r.id)?'on':'off'):'';
+      const shr=r.procs.length>1?r.shares[r.procs.indexOf(pr.id)]:1;if(r.procs.length>1&&r.process!==pr.id)cls+=' shared';
       if(S.sel&&S.sel.type==='result'&&S.sel.id===r.id)cls+=' sel';if(r.late)cls+=' late';
       const shape=r.kind==='milestone'?`<path d="M${xd},${cy-6}L${xd+6},${cy}L${xd},${cy+6}L${xd-6},${cy}Z"/>`:`<circle cx="${xd}" cy="${cy}" r="5"/>`;
       const lateMark=r.late?`<line class="late-l" x1="${xd}" x2="${x(r.t_ready)}" y1="${cy}" y2="${cy}"/><circle class="late-r" cx="${x(r.t_ready)}" cy="${cy}" r="3"/>`:'';
       const lab=H&&H.res.has(r.id)?`<text class="t-ms" x="${xd+9}" y="${cy-6}">${esc(r.name.length>40?r.name.slice(0,39)+'…':r.name)}</text>`:'';
-      body.push(`<g class="res ${cls}" data-sel="result:${r.id}" data-tip="<b>${KIND[r.kind]} · ${esc(r.name)}</b><br>${esc(pr.name)}<br>due ${esc(r.due)} · ready ${qlab(r.t_ready)}${r.late?'<br><b>⚠ late</b>':''}${r.run>0?'<br>'+fmtM(r.run)+'/yr at full adoption':''}">${lateMark}${shape}${lab}</g>`)});
+      body.push(`<g class="res ${cls}" data-sel="result:${r.id}" data-tip="<b>${KIND[r.kind]} · ${esc(r.name)}</b><br>${esc(pr.name)}${r.procs.length>1?' · share '+Math.round(shr*100)+'%'+(r.process===pr.id?' (lead)':''):''}<br>due ${esc(r.due)} · ready ${qlab(r.t_ready)}${r.late?'<br><b>⚠ late</b>':''}${r.run>0?'<br>'+fmtM(r.run)+'/yr at full adoption':''}">${lateMark}${shape}${lab}</g>`)});
     y+=22});
   y+=6;
   p.groups.forEach(g=>{const rows=ens.filter(e=>e.grp===g.id);if(!rows.length)return;
@@ -91,12 +92,12 @@ function renderTimeline(H){
     if(a.x2<=b.x1+1){const mx=(a.x2+b.x1)/2;edges.push(`<path class="edge ${ec}" d="M${a.x2},${a.cy}C${Math.max(mx,a.x2+18)},${a.cy} ${Math.min(mx,b.x1-18)},${b.cy} ${b.x1-1},${b.cy}" marker-end="${mk}"/>`)}
     else{const xt=clamp(a.x2,b.x1,b.x2);edges.push(`<circle cx="${a.x2}" cy="${a.cy}" r="2" class="arrowhead ${bad?'issue':''}" ${on||bad?'':'opacity=".2"'}/><path class="edge ${ec}" d="M${a.x2},${a.cy+sg*6}L${bad?a.x2:xt},${b.cy-sg*8}" marker-end="${mk}"/>`)}}));
   box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Enabler timeline"><defs><marker id="rm-ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead" d="M0,0L6,3L0,6Z"/></marker><marker id="rm-ahr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path class="arrowhead issue" d="M0,0L6,3L0,6Z"/></marker></defs>${grid.join('')}${body.join('')}${edges.join('')}</svg>`;
-  legend(`<span>● KPI</span><span>◆ milestone</span><span style="color:var(--neg)">●— late result (line to the date it can be ready)</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>required enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>label = capex incl. overrun, scenario effort</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" class="plan-ghost"/></svg>plan duration (when shortened)</span><span style="color:var(--neg)">⚠ red = date issue</span>`)}
+  legend(`<span>● KPI</span><span>◆ milestone</span><span>◇ shared, in another process's lane</span><span style="color:var(--neg)">●— late result (line to the date it can be ready)</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink)"/></svg>required enabler</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" style="fill:var(--ink);fill-opacity:.3;stroke:var(--ink);stroke-dasharray:3 2"/></svg>foundation (prerequisite)</span><span>label = capex incl. overrun, scenario effort</span><span><svg width="22" height="10"><rect x="1" y="1" width="20" height="8" rx="2" class="plan-ghost"/></svg>plan duration (when shortened)</span><span style="color:var(--neg)">⚠ red = date issue</span>`)}
 
 function renderChain(H){
   const p=S.p,box=q('.rm-viz'),W=Math.max(760,box.parentElement.clientWidth-4);const ens=p.enablers.filter(e=>e.show);
   const rs=p.results.filter(k=>k.show);const procs=p.processes.filter(x=>x.show);
-  const runP={};rs.forEach(r=>runP[r.process]=(runP[r.process]||0)+r.run);
+  const runP={};rs.forEach(r=>r.procs.forEach((pid,i)=>runP[pid]=(runP[pid]||0)+r.run*(r.shares[i]==null?1:r.shares[i])));
   const en=g=>ens.filter(e=>e.grp===g).map(e=>({id:e.id,type:'enabler',name:e.name,g:e.grp}));
   const order=procs.map(x=>x.id);
   const cols=[{t:'Infrastructure',items:en('infra')},{t:'Data',items:en('data')},{t:'People',items:en('people')},{t:'Digital solutions',items:en('digital')},
@@ -118,9 +119,9 @@ function renderChain(H){
   const st=on=>H?(on?'on':'off'):'';
   ens.forEach(d=>PRE[d.id].forEach(pr=>{const a=P['enabler'+pr],b=P['enabler'+d.id];if(a&&b)links.push(curve(a,b,'pre '+st(H&&H.en.has(pr)&&H.en.has(d.id))))}));
   p.links.forEach(l=>{const a=P['enabler'+l.enabler],b=P['result'+l.result];if(a&&b)links.push(curve(a,b,st(H&&H.res.has(l.result)&&H.en.has(l.enabler))))});
-  rs.forEach(r=>{const a=P['result'+r.id],b=P['process'+r.process];if(a&&b)links.push(curve(a,b,st(H&&H.res.has(r.id))))});
+  rs.forEach(r=>r.procs.forEach(pid=>{const a=P['result'+r.id],b=P['process'+pid];if(a&&b)links.push(curve(a,b,st(H&&H.res.has(r.id))+(pid!==r.process?' pre':'')))}));
   box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Value chain">${links.join('')}${nodes.join('')}</svg>`;
-  legend('<span>– – prerequisite</span><span>── required by / belongs to</span><span>label = run-rate $M/yr</span><span style="color:var(--neg)">red = late result or date issue</span>')}
+  legend('<span>– – prerequisite / shared with</span><span>── required by / belongs to (lead)</span><span>label = run-rate $M/yr</span><span style="color:var(--neg)">red = late result or date issue</span>')}
 
 function render(){
   if(!S.p||!root())return;const H=highlight();renderResults(H);

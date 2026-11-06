@@ -12,7 +12,7 @@ parse_selection <- function(x) {
 selection_sets <- function(data, graph, sel, result_ids) {
   w <- graph$weight[, result_ids, drop = FALSE]
   res_of <- function(en) colnames(w)[colSums(w[en, , drop = FALSE]) > 0]
-  proc_of <- function(rs) unique(data$result$process_id[match(rs, data$result$id)])
+  proc_of <- function(rs) colnames(graph$share)[colSums(graph$share[rs, , drop = FALSE]) > 0]
   if (sel$type == "result") {
     ch <- graph$chains[[sel$id]]
     list(direct = ch$direct, en = c(ch$direct, ch$foundation), result = sel$id,
@@ -23,7 +23,7 @@ selection_sets <- function(data, graph, sel, result_ids) {
     list(direct = sel$id, en = unique(c(sel$id, ancestors(sel$id, graph$prereq), down)),
          result = rs, proc = proc_of(rs), down = down)
   } else {
-    rs <- intersect(data$result$id[data$result$process_id == sel$id], result_ids)
+    rs <- intersect(results_of_process(graph, sel$id), result_ids)
     direct <- rownames(w)[rowSums(w[, rs, drop = FALSE]) > 0]
     list(direct = direct, en = union(direct, ancestors(direct, graph$prereq)),
          result = rs, proc = sel$id)
@@ -107,6 +107,11 @@ detail_result <- function(data, model, id) {
   driver <- c(oil_price = "oil price", fte_cost = "labour cost", none = "fixed")[r$value_driver]
   late <- model$late[model$late$result_id == id, ]
   ready_q <- q_of(model$ready[[id]])
+  sh <- model$graph$share[id, ]
+  sh <- sh[sh > 0]
+  shared <- if (length(sh) > 1) tags$div(class = "callout",
+    tags$b("Shared result: "), "lead ", data$process$name[data$process$id == r$process_id], ". Value and cost split ",
+    paste(sprintf("%s %s", data$process$name[match(names(sh), data$process$id)], fmt_pct(sh)), collapse = " \u00b7 "), ".")
   tagList(
     tags$div(tags$div(class = "eyebrow", kind_tag(r$kind), " ",
                       data$process$name[data$process$id == r$process_id], " \u00b7 owner ",
@@ -125,6 +130,7 @@ detail_result <- function(data, model, id) {
          list(if (r$kind == "kpi") cls(ready_q, if (nrow(late)) "neg" else "") else "none",
               fmt_musd(p$total_cost), if (r$kind == "kpi") "none" else ""))
     },
+    shared,
     if (nrow(late)) tags$div(class = "callout issue", tags$b("Late: "), late$message),
     issues_ui(model$issues[model$issues$enabler_id %in% en, ]),
     tags$div(class = "callout",
@@ -201,23 +207,28 @@ detail_enabler <- function(data, model, id, result_ids) {
 
 detail_process <- function(data, model, id, result_ids) {
   pr <- data$process[data$process$id == id, ]
-  ks <- intersect(data$result$id[data$result$process_id == id], result_ids)
+  ks <- intersect(results_of_process(model$graph, id), result_ids)
   ks <- ks[order(data$result$kind[match(ks, data$result$id)], data$result$due[match(ks, data$result$id)])]
+  w <- model$graph$share[ks, id]
   s <- selection_sets(data, model$graph, list(type = "process", id = id), result_ids)
-  p <- portfolio(model, ks)
+  p <- portfolio(model, ks, w)
   tagList(
     tags$div(tags$div(class = "eyebrow", "Process \u00b7 owner ", pr$owner), tags$h3(pr$name)),
     kv(c("Run-rate", "Alloc. cost", "NPV"),
        list(cls(paste0(fmt_musd(p$run_rate), "/yr"), "pos"), fmt_musd(p$total_cost),
             cls(fmt_musd(p$npv), sign_cls(p$npv)))),
     tags$table(class = "t",
-      tags$thead(tags$tr(tags$th("Result"), tags$th(class = "r", "Due"), tags$th(class = "r", "Run-rate"))),
+      tags$thead(tags$tr(tags$th("Result"), tags$th(class = "r", "Due"), tags$th(class = "r", "Share"),
+                         tags$th(class = "r", "Run-rate"))),
       tags$tbody(lapply(ks, function(k) {
         rr <- data$result[data$result$id == k, ]
         lt <- k %in% model$late$result_id
-        tags$tr(tags$td(kind_tag(rr$kind), " ", sel_link("result", k, rr$name)),
+        tags$tr(tags$td(kind_tag(rr$kind), " ", sel_link("result", k, rr$name),
+                        if (rr$process_id != id) tags$div(class = "hint", "shared \u00b7 lead ",
+                          data$process$name[data$process$id == rr$process_id])),
                 tags$td(class = paste("r", if (lt) "neg"), rr$due, if (lt) " \u26a0"),
-                tags$td(class = "r", formatC(model$run_rate[[k]], format = "f", digits = 1)))
+                tags$td(class = "r", fmt_pct(w[[k]])),
+                tags$td(class = "r", formatC(model$run_rate[[k]] * w[[k]], format = "f", digits = 1)))
       }))),
     late_ui(model$late[model$late$result_id %in% ks, ]),
     tags$div(class = "callout", sprintf("%d required enablers and %d foundations sit behind this process.",

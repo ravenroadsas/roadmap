@@ -155,14 +155,18 @@ run_model <- function(data, graph, cfg, base = cfg, resources = NULL) {
   )
 }
 
-#' Portfolio figures for a set of KPIs
+#' Portfolio figures for a set of results
+#'
+#' @param w optional weight per result, e.g. a process's share of shared results.
 #'
 #' Enabler costs are allocated to the KPIs through the graph's allocation
 #' shares, so the full KPI set carries the full cost.
-portfolio <- function(model, result_ids = colnames(model$graph$alloc)) {
-  share <- rowSums(model$graph$alloc[, result_ids, drop = FALSE])
+portfolio <- function(model, result_ids = colnames(model$graph$alloc), w = NULL) {
+  if (is.null(w)) w <- rep(1, length(result_ids))
+  w <- as.numeric(w)
+  share <- as.vector(model$graph$alloc[, result_ids, drop = FALSE] %*% w)
   cost <- colSums(model$cost * share)
-  value <- colSums(model$value[result_ids, , drop = FALSE])
+  value <- colSums(model$value[result_ids, , drop = FALSE] * w)
   net <- value - cost
   cum <- cumsum(net)
   pay <- which(cum >= 0)
@@ -174,7 +178,7 @@ portfolio <- function(model, result_ids = colnames(model$graph$alloc)) {
     total_value = sum(value), total_cost = total_cost,
     roi = if (total_cost > 0) (sum(value) - total_cost) / total_cost else NA_real_,
     payback = if (length(pay)) model$years[pay[1]] else NA_integer_,
-    run_rate = sum(model$run_rate[result_ids])
+    run_rate = sum(model$run_rate[result_ids] * w)
   )
 }
 

@@ -1,6 +1,6 @@
 test_that("data layer creates the schema and seeds every table", {
   d <- sample_data()
-  expect_named(d, c("process", "result", "enabler", "result_enabler", "enabler_dependency"))
+  expect_named(d, c("process", "result", "result_process", "enabler", "result_enabler", "enabler_dependency"))
   expect_equal(nrow(d$process), 6)
   expect_equal(nrow(d$enabler), 16)
   expect_setequal(unique(d$result$kind), c("kpi", "milestone"))

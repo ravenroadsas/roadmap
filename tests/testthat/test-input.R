@@ -8,7 +8,11 @@ xlsx_from <- function(tabs, drop_sheet = NULL) {
 }
 tiny_tables <- function() {
   d <- tiny_data()
-  lapply(stats::setNames(names(INPUT_SPEC), names(INPUT_SPEC)), function(t) d[[t]][, names(INPUT_SPEC[[t]])])
+  lapply(stats::setNames(names(INPUT_SPEC), names(INPUT_SPEC)), function(t) {
+    if (is.null(d[[t]])) return(as.data.frame(stats::setNames(replicate(length(INPUT_SPEC[[t]]), character(0),
+                                                                          simplify = FALSE), names(INPUT_SPEC[[t]]))))
+    d[[t]][, names(INPUT_SPEC[[t]])]
+  })
 }
 
 test_that("packaged workbook loads and every sheet has its columns", {
@@ -96,7 +100,7 @@ test_that("config comes from the workbook's config sheet", {
   expect_true(all(CONFIG_REQUIRED %in% ct$key))
   expect_type(ct$value, "double")
   expect_type(ct$is_pct, "logical")
-  expect_equal(readxl::excel_sheets(input_path())[7], "config")
+  expect_true("config" %in% readxl::excel_sheets(input_path()))
 })
 
 test_that("exported workbook carries the config and reads back the same", {
@@ -130,4 +134,27 @@ test_that("config problems are reported together", {
   f2 <- tempfile(fileext = ".xlsx")
   writexl::write_xlsx(list(process = data.frame(id = "P1")), f2)
   expect_error(config_read(board_type = "", input = f2), "sheet 'config' is missing", fixed = TRUE)
+})
+
+test_that("result_process is optional, and shared results round-trip", {
+  skip_if_not_installed("writexl")
+  tabs <- tiny_tables()
+  x <- read_input_excel(xlsx_from(tabs, drop_sheet = "result_process"))   # sheet left out
+  expect_equal(nrow(x$result_process), 0)
+  tabs$result_process <- data.frame(result_id = c("K1", "K1"), process_id = c("P1", "P2"), share = c(3, NA))
+  x <- read_input_excel(xlsx_from(tabs))
+  expect_equal(x$result_process$share, c(3, 1))                         # empty share -> 1
+  f <- tempfile(fileext = ".xlsx")
+  write_input_excel(f, x)
+  expect_equal(read_input_excel(f)$result_process, x$result_process, ignore_attr = TRUE)
+})
+
+test_that("result_process problems are reported", {
+  skip_if_not_installed("writexl")
+  tabs <- tiny_tables()
+  tabs$result_process <- data.frame(result_id = c("K1", "K9", "K2"), process_id = c("P2", "P1", "P9"), share = c(1, 1, 1))
+  err <- tryCatch(read_input_excel(xlsx_from(tabs)), error = conditionMessage)
+  expect_match(err, "result_process K1: list its lead process P1 too", fixed = TRUE)
+  expect_match(err, "result_process K9-P1: unknown result", fixed = TRUE)
+  expect_match(err, "result_process K2-P9: unknown process", fixed = TRUE)
 })

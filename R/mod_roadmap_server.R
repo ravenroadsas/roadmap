@@ -38,6 +38,7 @@ mod_roadmap_server <- function(id, data, graph, model) {
     output$strip <- shiny::renderUI({
       f <- filters()
       summary_strip(data, model(), result_ids(), groups = f$group,
+                    w = process_weights(graph, result_ids(), filtered_processes(data, f)),
                     filtered = filters_active(data, f))
     })
     output$detail_title <- shiny::renderText({

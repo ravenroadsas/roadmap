@@ -42,12 +42,13 @@ mod_overview_server <- function(id, data, model) {
       q <- function(t) ifelse(is.na(t), "\u2013", time_to_q(ceiling(t * 4 - 1e-9) / 4 - 0.25))
       tags$table(class = "t",
         tags$thead(tags$tr(tags$th("Process"), tags$th("Owner"), tags$th(class = "r", "KPIs"),
-                           tags$th(class = "r", "Milestones"), tags$th(class = "r", "Late"),
+                           tags$th(class = "r", "Milestones"), tags$th(class = "r", "Shared in"), tags$th(class = "r", "Late"),
                            tags$th(class = "r", "Run-rate"), tags$th(class = "r", "NPV"),
                            tags$th(class = "r", "ROI"), tags$th(class = "r", "First value"))),
         tags$tbody(lapply(seq_len(nrow(d)), function(i) tags$tr(
           tags$td(d$name[i]), tags$td(class = "hint", d$owner[i]),
           tags$td(class = "r", d$kpis[i]), tags$td(class = "r", d$milestones[i]),
+          tags$td(class = "r", if (d$shared[i]) d$shared[i] else tags$span(class = "hint", "\u2013")),
           tags$td(class = paste("r", if (d$late[i]) "neg"), d$late[i]),
           tags$td(class = "r", formatC(d$run_rate[i], format = "f", digits = 1)),
           tags$td(class = paste("r", sign_cls(d$npv[i])), formatC(d$npv[i], format = "f", digits = 1)),

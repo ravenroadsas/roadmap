@@ -113,15 +113,17 @@ chart_ready <- function(df) {
 #' the investment card also shows the part spent in the selected groups.
 #' @param groups enabler groups selected in the filter.
 #' @param filtered TRUE when the left-panel filters narrow the portfolio.
-summary_strip <- function(data, model, result_ids, groups = GROUPS$id, filtered = FALSE) {
+#' @param w weight per result: the selected processes' share of shared results.
+summary_strip <- function(data, model, result_ids, groups = GROUPS$id, filtered = FALSE, w = NULL) {
   stat <- function(l, v, s) tags$div(class = "stat", tags$div(class = "l", l), tags$div(class = "v", v), tags$div(class = "s", s))
   h <- model$cfg$horizon_end
   if (!length(result_ids)) {
     return(tags$div(class = "strip filtered",
       stat("No result matches the filters", "\u2013", "change or reset the filters")))
   }
-  p <- portfolio(model, result_ids)
-  share <- rowSums(model$graph$alloc[, result_ids, drop = FALSE])
+  if (is.null(w)) w <- rep(1, length(result_ids))
+  p <- portfolio(model, result_ids, w)
+  share <- stats::setNames(as.vector(model$graph$alloc[, result_ids, drop = FALSE] %*% w), rownames(model$graph$alloc))
   i <- match(names(share), data$enabler$id)
   capex <- sum(rowSums(model$cost_parts$capex)[names(share)] * share)
   n_en <- sum(share > 1e-9)

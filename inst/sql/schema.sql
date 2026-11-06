@@ -20,6 +20,13 @@ CREATE TABLE IF NOT EXISTS result (                -- tangible results: KPIs and
   value_driver  VARCHAR NOT NULL DEFAULT 'none'    -- config key that scales value, or 'none'
 );
 
+CREATE TABLE IF NOT EXISTS result_process (        -- optional: a result shared by several processes
+  result_id   VARCHAR NOT NULL REFERENCES result(id),
+  process_id  VARCHAR NOT NULL REFERENCES process(id),
+  share       DOUBLE NOT NULL DEFAULT 1,             -- normalised per result
+  PRIMARY KEY (result_id, process_id)
+);
+
 CREATE TABLE IF NOT EXISTS enabler (
   id             VARCHAR PRIMARY KEY,
   enabler_group  VARCHAR NOT NULL,                 -- people | digital | data | infra
