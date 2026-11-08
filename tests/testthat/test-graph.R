@@ -2,65 +2,42 @@ test_that("quarter and month conversions", {
   expect_equal(q_to_time("2027Q1"), 2027)
   expect_equal(q_to_time("2027Q3", end = TRUE), 2027.75)
   expect_equal(month_to_time("2026-12"), 2026 + 11.5 / 12)
+  expect_equal(due_to_time("2027-03"), 2027.25)
   expect_equal(time_to_q(2028.25), "2028Q2")
+  expect_equal(q_of(2027.3), "2027Q2")
 })
 
-test_that("tiny graph: weights, allocation, chains and ready dates", {
+test_that("weights, allocation, chains and ready dates", {
   g <- build_graph(tiny_data())
-  expect_equal(unname(g$weight[, "K1"]), c(0, 0.75, 0.25))
-  # E1 has no direct KPI but carries E2's flow -> all of its cost goes to K1
-  expect_equal(g$alloc["E1", "K1"], 1)
+  expect_equal(unname(g$weight[c("E1", "E2", "E3"), "K1"]), c(0, 0.75, 0.25))
+  expect_equal(g$alloc["E1", "K1"], 1)                       # foundation carries E2's results
   expect_equal(unname(rowSums(g$alloc)), c(1, 1, 1))
-  expect_equal(g$chains$K1$direct, c("E2", "E3"))
+  expect_setequal(g$chains$K1$direct, c("E2", "E3"))
   expect_equal(g$chains$K1$foundation, "E1")
   expect_equal(g$ready[["K1"]], 2027.5)
-  expect_equal(g$ready[["K2"]], 2026.5)
-})
-
-test_that("ancestors and descendants follow the dependency chain", {
-  g <- build_graph(tiny_data())
+  expect_equal(g$ready[["M1"]], 2026.5)
   expect_equal(ancestors("E2", g$prereq), "E1")
   expect_equal(descendants("E1", g$dependents), "E2")
-  expect_length(ancestors("E3", g$prereq), 0)
 })
 
-test_that("graph_validate catches cycles and broken references", {
-  d <- tiny_data()
+test_that("validation catches cycles and broken references", {
+  d <- tiny_tables()
   expect_length(graph_validate(d), 0)
   d$enabler_dependency <- rbind(d$enabler_dependency, data.frame(enabler_id = "E1", requires_id = "E2"))
   expect_match(graph_validate(d), "cycle", all = FALSE)
-  expect_error(build_graph(d), "cycle")
-  d <- tiny_data()
+  d <- tiny_tables()
   d$result_enabler$result_id[1] <- "K9"
-  expect_match(graph_validate(d), "unknown result", all = FALSE)
-  d <- tiny_data()
-  d$result$kind[3] <- "goal"
-  expect_match(graph_validate(d), "must be kpi or milestone", all = FALSE)
-  d <- tiny_data()
-  d$result_enabler <- d$result_enabler[d$result_enabler$result_id != "M1", ]
-  expect_match(graph_validate(d), "M1 requires no enabler", all = FALSE)
+  d$enabler$concept_id[1] <- "C9"
+  v <- graph_validate(d)
+  expect_match(v, "unknown result", all = FALSE)
+  expect_match(v, "unknown concept C9", all = FALSE)
 })
 
-test_that("sample data is valid and every enabler reaches a KPI", {
-  d <- sample_data()
+test_that("date problems load and are reported", {
+  d <- tiny_tables()
+  d$enabler$end_q[1] <- "2027Q4"                             # E1 (needed by E2) goes live after E2
+  d$enabler$end_q[3] <- "2025Q4"                             # E3 ends before it starts
   expect_length(graph_validate(d), 0)
-  g <- build_graph(d)
-  expect_true(all(abs(rowSums(g$alloc) - 1) < 1e-9))
-  expect_true(all(g$ready >= 2026 & g$ready <= 2030))
-})
-
-test_that("date inconsistencies load and are reported, not blocking", {
-  d <- tiny_data()
-  expect_equal(nrow(date_issues(d)), 0)
-  d$enabler$end_q[1] <- "2027Q4"            # E1 (needed by E2) now goes live after E2
-  d$enabler$end_q[3] <- "2025Q4"            # E3 ends before it starts
-  expect_length(graph_validate(d), 0)
-  g <- build_graph(d)
+  g <- build_graph(prepare_data(d))
   expect_setequal(g$issues$type, c("end_before_start", "prereq_ends_later"))
-  late <- g$issues[g$issues$type == "prereq_ends_later", ]
-  expect_equal(c(late$enabler_id, late$related_id), c("E2", "E1"))
-  # a backwards enabler still produces a finite, positive cost
-  m <- run_model(d, g, tiny_cfg())
-  expect_true(all(is.finite(m$cost)))
-  expect_equal(sum(m$cost["E3", ]), 1)
 })

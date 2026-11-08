@@ -1,5 +1,6 @@
--- Roadmap data model (portable SQL: DuckDB in development, SQL Server / Postgres later).
+-- Roadmap data model v2 (portable SQL: DuckDB in development, SQL Server / Postgres later).
 -- Statements are separated by ';' and executed one by one by db_init().
+-- Logic: enablers make results possible; results generate value for processes.
 
 CREATE TABLE IF NOT EXISTS process (
   id          VARCHAR PRIMARY KEY,
@@ -7,41 +8,47 @@ CREATE TABLE IF NOT EXISTS process (
   owner       VARCHAR
 );
 
-CREATE TABLE IF NOT EXISTS result (                -- tangible results: KPIs and milestones
+CREATE TABLE IF NOT EXISTS result (                -- one category of tangible result
   id            VARCHAR PRIMARY KEY,
-  process_id    VARCHAR NOT NULL REFERENCES process(id),
-  kind          VARCHAR NOT NULL,                  -- kpi | milestone
+  process_id    VARCHAR NOT NULL REFERENCES process(id),   -- lead process
   name          VARCHAR NOT NULL,
   due           VARCHAR NOT NULL,                  -- YYYY-MM
-  unit          VARCHAR,                           -- KPI only
-  baseline      DOUBLE,                            -- KPI only
-  target        DOUBLE,                            -- KPI only
-  value_musd    DOUBLE DEFAULT 0,                  -- annual value when achieved, $M
-  value_driver  VARCHAR NOT NULL DEFAULT 'none'    -- config key that scales value, or 'none'
+  value_musd    DOUBLE DEFAULT 0,                  -- annual value once achieved, $M
+  value_driver  VARCHAR NOT NULL DEFAULT 'none',   -- config key that scales value, or 'none'
+  unit          VARCHAR,                           -- optional measure
+  baseline      DOUBLE,
+  target        DOUBLE
 );
 
-CREATE TABLE IF NOT EXISTS result_process (        -- optional: a result shared by several processes
+CREATE TABLE IF NOT EXISTS result_process (        -- optional: result shared by several processes
   result_id   VARCHAR NOT NULL REFERENCES result(id),
   process_id  VARCHAR NOT NULL REFERENCES process(id),
-  share       DOUBLE NOT NULL DEFAULT 1,             -- normalised per result
+  share       DOUBLE NOT NULL DEFAULT 1,
   PRIMARY KEY (result_id, process_id)
+);
+
+CREATE TABLE IF NOT EXISTS concept (               -- group > subgroup > concept > enabler
+  id             VARCHAR PRIMARY KEY,
+  name           VARCHAR NOT NULL,
+  enabler_group  VARCHAR NOT NULL,                 -- people | digital | data | infra
+  subgroup       VARCHAR,
+  fte_internal   DOUBLE DEFAULT 0,                 -- average FTE over the concept's build window
+  fte_partner    DOUBLE DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS enabler (
   id             VARCHAR PRIMARY KEY,
-  enabler_group  VARCHAR NOT NULL,                 -- people | digital | data | infra
-  subcategory    VARCHAR,
+  concept_id     VARCHAR NOT NULL REFERENCES concept(id),
   name           VARCHAR NOT NULL,
   start_q        VARCHAR NOT NULL,                 -- YYYYQn
   end_q          VARCHAR NOT NULL,
   capex_musd     DOUBLE DEFAULT 0,
   opex_musd_yr   DOUBLE DEFAULT 0,
-  fte_internal   DOUBLE DEFAULT 0,                 -- expertise / manpower built internally
-  fte_partner    DOUBLE DEFAULT 0,                 -- allies and contractors
-  scalability    DOUBLE DEFAULT 0                  -- duration response to extra resources: 0 rigid, 1 linear, >1 better than linear
+  cost_basis     VARCHAR NOT NULL DEFAULT 'fixed', -- fixed | per_process
+  scalability    DOUBLE DEFAULT 0                  -- 0 rigid, 1 linear, >1 better than linear
 );
 
-CREATE TABLE IF NOT EXISTS result_enabler (        -- explicit: result requires enabler
+CREATE TABLE IF NOT EXISTS result_enabler (        -- result requires enabler
   result_id   VARCHAR NOT NULL REFERENCES result(id),
   enabler_id  VARCHAR NOT NULL REFERENCES enabler(id),
   weight      DOUBLE NOT NULL DEFAULT 1,

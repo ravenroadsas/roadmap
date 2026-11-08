@@ -1,14 +1,11 @@
-test_that("data layer creates the schema and seeds every table", {
+test_that("sample workbook loads through the data layer", {
   d <- sample_data()
-  expect_named(d, c("process", "result", "result_process", "enabler", "result_enabler", "enabler_dependency"))
-  expect_equal(nrow(d$process), 6)
+  expect_named(d, ROADMAP_TABLES)
   expect_equal(nrow(d$enabler), 16)
-  expect_setequal(unique(d$result$kind), c("kpi", "milestone"))
-  expect_equal(sum(d$result$kind == "milestone"), 8)
-  expect_true(all(nzchar(d$process$owner)))
-  expect_true(all(d$enabler$enabler_group %in% GROUPS$id))
-  info <- attr(d, "table_info")
-  expect_equal(info$result$rows, nrow(d$result))
+  expect_false("kind" %in% names(d$result))
+  expect_true(all(c("enabler_group", "concept", "fte_internal") %in% names(d$enabler)))
+  expect_true(any(d$enabler$cost_basis == "per_process"))
+  expect_equal(attr(d, "table_info")$concept$rows, nrow(d$concept))
 })
 
 test_that("import replaces the database content", {
@@ -17,18 +14,13 @@ test_that("import replaces the database content", {
   con <- db_connect(":memory:")
   on.exit(db_disconnect(con))
   db_init(con)
-  db_import(con, tabs)
-  db_import(con, tabs)
+  db_import(con, tabs); db_import(con, tabs)
   expect_equal(nrow(db_read_all(con)$enabler), 16)
-  tabs$result_enabler <- tabs$result_enabler[1:2, ]
-  db_import(con, tabs)
-  expect_equal(nrow(db_read_all(con)$result_enabler), 2)
 })
 
-test_that("config reads from CSV and exposes values", {
+test_that("config: four levers and the fixed assumptions", {
   ct <- sample_cfg()
-  v <- config_values(ct)
-  expect_equal(v$horizon_end, 2033)
-  expect_true(is.logical(ct$is_pct))
+  expect_setequal(ct$key[ct$in_sensitivity], c("adoption_years", "oil_price", "cost_multiplier", "resource_multiplier"))
+  expect_true(all(CONFIG_REQUIRED %in% ct$key))
   expect_error(config_clean(ct[ct$key != "oil_price", ]), "oil_price")
 })

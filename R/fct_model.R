@@ -1,7 +1,47 @@
-# Cost and value model. Pure functions: data + graph + config values in,
+# Cost and value model v2. Pure functions: data + graph + config values in,
 # yearly profiles out. All money in $M.
+#
+# Logic: enablers make results possible; results generate value for the
+# processes that hold them. The process scope ("what if we transform only
+# these processes") sets which results count and which enablers are needed.
 
 overlap <- function(a, b, y) pmax(0, pmin(b, y + 1) - pmax(a, y))
+
+#' Join concepts onto enablers and derive their FTE
+#'
+#' Enablers are classified group > subgroup > concept > enabler. FTEs are
+#' entered on the concept as an average over its build window (first start
+#' to last go-live of its enablers) and spread over its enablers in
+#' proportion to their build duration, so total effort is kept:
+#' enabler FTE = concept FTE x window / sum of enabler durations.
+#' Also marks results that carry a measure (baseline -> target).
+#' @param tables named list of tables (from the workbook or the database).
+prepare_data <- function(tables) {
+  e <- tables$enabler
+  cpt <- tables$concept
+  i <- match(e$concept_id, cpt$id)
+  e$enabler_group <- cpt$enabler_group[i]
+  e$subgroup <- ifelse(is.na(cpt$subgroup[i]), "", cpt$subgroup[i])
+  e$concept <- cpt$name[i]
+  s <- q_to_time(e$start_q)
+  d <- pmax(q_to_time(e$end_q, end = TRUE) - s, 0.25)
+  window <- tapply(s + d, e$concept_id, max) - tapply(s, e$concept_id, min)
+  dsum <- tapply(d, e$concept_id, sum)
+  k <- as.vector((window / dsum)[e$concept_id])
+  e$fte_internal <- unname(cpt$fte_internal[i] * k)
+  e$fte_partner <- unname(cpt$fte_partner[i] * k)
+  grp_order <- c("people", "digital", "data", "infra")
+  e <- e[order(match(e$enabler_group, grp_order), e$concept, e$start_q, e$id), ]
+  rownames(e) <- NULL
+  tables$enabler <- e
+  r <- tables$result
+  r$measured <- !is.na(r$baseline) & !is.na(r$target)
+  tables$result <- r
+  if (is.null(tables$result_process)) {
+    tables$result_process <- data.frame(result_id = character(0), process_id = character(0), share = numeric(0))
+  }
+  tables
+}
 
 #' Scenario schedule for each enabler
 #'
@@ -46,23 +86,23 @@ schedule <- function(enabler, cfg, resources = NULL) {
              stringsAsFactors = FALSE)
 }
 
-#' Yearly cost of each enabler, split by type
+#' Yearly cost of each enabler, split by type (before scope)
 #'
-#' * capex: capex x (1 + overrun) x effort factor, spread evenly over the
-#'   scenario build (start fixed, end per schedule())
-#' * people: internal and partner FTE (partner at a premium) x resource
-#'   multiplier, during the build
+#' * capex: capex x effort factor, spread evenly over the scenario build
+#' * people: concept FTE spread on the enabler (partner at a premium) x
+#'   resource multiplier, during the build
 #' * opex: from the scenario go-live to the horizon
-#' @param sched output of schedule(); computed from cfg when missing.
+#' All three are multiplied by the cost multiplier lever.
 #' @return list of three matrices (enabler x year): capex, people, opex.
 cost_parts <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
   s <- sched$start
   f <- sched$end
+  m <- cfg$cost_multiplier %||% 1
   horizon <- max(years) + 1
   people <- (enabler$fte_internal * cfg$fte_cost +
              enabler$fte_partner * cfg$fte_cost * (1 + cfg$partner_premium)) / 1000 *
-    sched$people_factor
-  capex <- enabler$capex_musd * (1 + cfg$capex_overrun) * sched$cost_factor / sched$duration
+    sched$people_factor * m
+  capex <- enabler$capex_musd * m * sched$cost_factor / sched$duration
   mk <- function(f_year) {
     matrix(vapply(years, f_year, numeric(nrow(enabler))), nrow = nrow(enabler),
            dimnames = list(enabler$id, years))
@@ -70,19 +110,11 @@ cost_parts <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
   list(
     capex = mk(function(y) capex * overlap(s, f, y)),
     people = mk(function(y) people * overlap(s, f, y)),
-    opex = mk(function(y) enabler$opex_musd_yr * overlap(f, horizon, y))
+    opex = mk(function(y) enabler$opex_musd_yr * m * overlap(f, horizon, y))
   )
 }
 
-#' Yearly cost of each enabler (sum of cost_parts())
-#' @return matrix enabler x year.
-cost_profile <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
-  p <- cost_parts(enabler, cfg, years, sched)
-  p$capex + p$people + p$opex
-}
-
 #' Average FTE working on enabler builds per year (scenario resources)
-#' @return data frame year, internal, partner.
 fte_profile <- function(enabler, years, sched) {
   b <- vapply(years, function(y) overlap(sched$start, sched$end, y), numeric(nrow(enabler)))
   b <- matrix(b, nrow = nrow(enabler))
@@ -91,35 +123,33 @@ fte_profile <- function(enabler, years, sched) {
              partner = colSums(b * enabler$fte_partner * sched$people_factor))
 }
 
-#' Result ready date: latest scenario end across its required enablers and
-#' their prerequisites
+#' Result ready date: latest go-live across its required enablers and their prerequisites
 result_ready <- function(graph, sched) {
   end_t <- stats::setNames(sched$end, sched$id)
   vapply(graph$chains, function(ch) max(end_t[c(ch$direct, ch$foundation)]), numeric(1))
 }
 
-#' Factor applied to a KPI's value from its driver parameter
+#' Factor applied to a result's value from its driver parameter
 driver_factor <- function(driver, cfg, base) {
   vapply(driver, function(d) {
     if (is.na(d) || d == "none" || is.null(cfg[[d]])) 1 else cfg[[d]] / base[[d]]
   }, numeric(1), USE.NAMES = FALSE)
 }
 
-#' Yearly value of each KPI
+#' Yearly value of each result
 #'
-#' Full value = value_musd x realisation x driver factor. Benefits start
-#' `adoption_delay` years after the result's whole enabler chain is ready
-#' and ramp linearly over `ramp_years`. Evaluated quarterly, averaged per year.
-#' @return matrix KPI x year.
+#' Full value = value_musd x realisation x driver factor. Once the result is
+#' ready, value ramps linearly to full over the adoption time (the
+#' `adoption_years` lever). Evaluated quarterly, averaged per year.
+#' @return matrix result x year, with attribute run_rate.
 value_profile <- function(result, ready, cfg, base, years) {
   vm <- ifelse(is.na(result$value_musd), 0, result$value_musd)
   full <- vm * cfg$realization * driver_factor(result$value_driver, cfg, base)
   r <- ready[result$id]
+  a <- max(cfg$adoption_years, 1e-6)
   out <- vapply(years, function(y) {
     q <- y + (0:3 + 0.5) / 4
-    ramp <- vapply(r, function(ri) {
-      mean(pmin(1, pmax(0, (q - ri - cfg$adoption_delay) / cfg$ramp_years)))
-    }, numeric(1))
+    ramp <- vapply(r, function(ri) mean(pmin(1, pmax(0, (q - ri) / a))), numeric(1))
     full * ramp
   }, numeric(nrow(result)))
   out <- matrix(out, nrow = nrow(result), dimnames = list(result$id, years))
@@ -127,99 +157,103 @@ value_profile <- function(result, ready, cfg, base, years) {
   out
 }
 
-#' Run the full model for one scenario
-#' @param data roadmap data list.
-#' @param graph output of build_graph().
+#' Scope: which results count, which enablers are needed, at what cost
+#'
+#' A result counts with the share its in-scope processes hold. An enabler
+#' is needed if an in-scope result requires it (directly or as a
+#' prerequisite). Its cost then counts in full when cost_basis is "fixed";
+#' when "per_process" it scales with the processes it serves that are in
+#' scope: (n / N)^scalability (0 = fixed, 1 = proportional).
+#' @param scope process ids in scope (all when NULL).
+#' @return list(w = result weights, factor = enabler cost factors, n, N).
+scope_factors <- function(data, graph, scope = NULL) {
+  pids <- colnames(graph$share)
+  if (is.null(scope)) scope <- pids
+  w <- rowSums(graph$share[, intersect(scope, pids), drop = FALSE])
+  ids <- graph$ids
+  # processes each enabler serves: those holding any result whose chain contains it
+  serves <- lapply(stats::setNames(ids, ids), function(e) {
+    rs <- names(Filter(function(ch) e %in% c(ch$direct, ch$foundation), graph$chains))
+    pids[colSums(graph$share[rs, , drop = FALSE]) > 0]
+  })
+  needed_rs <- names(w)[w > 0]
+  needed <- unique(unlist(lapply(graph$chains[needed_rs], function(ch) c(ch$direct, ch$foundation))))
+  N <- vapply(serves, length, 1L)
+  n <- vapply(serves, function(p) sum(p %in% scope), 1L)
+  e <- data$enabler[match(ids, data$enabler$id), ]
+  sc <- pmin(pmax(ifelse(is.na(e$scalability), 0, e$scalability), 0), 2)
+  per <- e$cost_basis == "per_process"
+  f <- ifelse(!ids %in% needed, 0, ifelse(per & N > 0, (n / pmax(N, 1))^sc, 1))
+  list(w = w, factor = stats::setNames(f, ids), n = stats::setNames(n, ids), N = stats::setNames(N, ids))
+}
+
+#' Run the full model for one scenario and one process scope
 #' @param cfg named list of parameter values (scenario).
 #' @param base named list of base-case values (for driver factors).
-run_model <- function(data, graph, cfg, base = cfg, resources = NULL) {
+#' @param resources optional per-enabler resource multipliers (solve_target()).
+#' @param scope process ids in scope (all when NULL).
+run_model <- function(data, graph, cfg, base = cfg, resources = NULL, scope = NULL) {
   start <- floor(min(q_to_time(data$enabler$start_q)))
   years <- seq(start, cfg$horizon_end)
   sched <- schedule(data$enabler, cfg, resources)
   ready <- result_ready(graph, sched)
   parts <- cost_parts(data$enabler, cfg, years, sched)
-  cost <- parts$capex + parts$people + parts$opex
-  plan_cfg <- cfg
-  plan_cfg$resource_multiplier <- 1
-  plan_cost <- cost_profile(data$enabler, plan_cfg, years)
+  full_cost <- parts$capex + parts$people + parts$opex
+  sf <- scope_factors(data, graph, scope)
   value <- value_profile(data$result, ready, cfg, base, years)
   list(
-    cfg = cfg, years = years, start = start, resources = resources,
+    cfg = cfg, years = years, start = start, resources = resources, scope = scope,
     schedule = sched, ready = ready,
     issues = date_issues(data, stats::setNames(sched$end, sched$id)),
     late = result_issues(data, graph, ready, stats::setNames(sched$end, sched$id)),
-    cost = cost, cost_parts = parts, plan_cost = plan_cost, value = value,
-    run_rate = attr(value, "run_rate"),
+    cost_parts = parts, full_cost = full_cost,
+    cost = full_cost * sf$factor[rownames(full_cost)],
+    scope_w = sf$w, scope_factor = sf$factor, scope_n = sf$n, scope_N = sf$N,
+    value = value, run_rate = attr(value, "run_rate"),
     discount = 1 / (1 + cfg$discount_rate)^(years - start),
     graph = graph
   )
 }
 
-#' Portfolio figures for a set of results
+#' Headline figures for the model's scope
 #'
-#' @param w optional weight per result, e.g. a process's share of shared results.
-#'
-#' Enabler costs are allocated to the KPIs through the graph's allocation
-#' shares, so the full KPI set carries the full cost.
-portfolio <- function(model, result_ids = colnames(model$graph$alloc), w = NULL) {
-  if (is.null(w)) w <- rep(1, length(result_ids))
-  w <- as.numeric(w)
-  share <- as.vector(model$graph$alloc[, result_ids, drop = FALSE] %*% w)
-  cost <- colSums(model$cost * share)
-  value <- colSums(model$value[result_ids, , drop = FALSE] * w)
+#' Value: in-scope results at their in-scope share. Cost: the enablers those
+#' results need, per-process enablers scaled to the scope.
+portfolio <- function(model) {
+  w <- model$scope_w
+  value <- colSums(model$value[names(w), , drop = FALSE] * w)
+  cost <- colSums(model$cost)
   net <- value - cost
   cum <- cumsum(net)
   pay <- which(cum >= 0)
-  total_cost <- sum(cost)
+  ids <- names(w)[w > 0]
   list(
     years = model$years, value = unname(value), cost = unname(cost),
     net = unname(net), cum_net = unname(cum),
     npv = sum(net * model$discount),
-    total_value = sum(value), total_cost = total_cost,
-    roi = if (total_cost > 0) (sum(value) - total_cost) / total_cost else NA_real_,
+    total_value = sum(value), total_cost = sum(cost),
+    roi = if (sum(cost) > 0) (sum(value) - sum(cost)) / sum(cost) else NA_real_,
     payback = if (length(pay)) model$years[pay[1]] else NA_integer_,
-    run_rate = sum(model$run_rate[result_ids] * w)
+    run_rate = sum(model$run_rate[names(w)] * w),
+    results = ids, enablers = names(which(model$scope_factor > 0)),
+    last_ready = if (length(ids)) max(model$ready[ids]) else NA_real_
   )
 }
 
-#' Per-enabler cost to horizon, and cost allocated to one KPI
-enabler_costs <- function(model, result_id = NULL) {
-  tot <- rowSums(model$cost)
-  if (is.null(result_id)) return(tot)
-  tot * model$graph$alloc[, result_id]
-}
-
-#' Direct value attributed to each enabler (by normalised link weight)
-enabler_direct_value <- function(model, result_ids = colnames(model$graph$weight)) {
-  as.vector(model$graph$weight[, result_ids, drop = FALSE] %*% rowSums(model$value[result_ids, , drop = FALSE])) |>
-    stats::setNames(rownames(model$graph$weight))
-}
-
-#' One-at-a-time sensitivity of NPV
+#' Cost attributed to results (share of the full roadmap cost)
 #'
-#' Each lever is set to its low and high value while the others keep the
-#' scenario value.
-#' @param cfg_table config data frame (low / high / in_sensitivity).
-#' @return data frame sorted by NPV spread, largest first.
-tornado <- function(data, graph, cfg, base, cfg_table, result_ids = graph$results, resources = NULL) {
-  levers <- cfg_table[cfg_table$in_sensitivity, ]
-  if (!is.null(resources)) levers <- levers[levers$key != "resource_multiplier", ]
-  npv_at <- function(key, v) {
-    s <- cfg
-    s[[key]] <- v
-    portfolio(run_model(data, graph, s, base, resources), result_ids)$npv
-  }
-  out <- data.frame(
-    key = levers$key, label = levers$label,
-    low = levers$low, high = levers$high,
-    npv_low = mapply(npv_at, levers$key, levers$low),
-    npv_high = mapply(npv_at, levers$key, levers$high),
-    stringsAsFactors = FALSE
-  )
-  out$spread <- abs(out$npv_high - out$npv_low)
-  out <- out[order(-out$spread), ]
-  rownames(out) <- NULL
-  out
+#' Each enabler's cost is split across the results that require it by
+#' weight; foundations pass theirs on through their dependents.
+#' @param w optional weights (e.g. a process's share of each result).
+attributed <- function(model, result_ids, w = rep(1, length(result_ids))) {
+  tot <- rowSums(model$full_cost)
+  share <- as.vector(model$graph$alloc[, result_ids, drop = FALSE] %*% w)
+  value <- sum(rowSums(model$value[result_ids, , drop = FALSE]) * w)
+  cost <- sum(tot * share)
+  net <- colSums(model$value[result_ids, , drop = FALSE] * w) - colSums(model$full_cost * share)
+  list(value = value, cost = cost, npv = sum(net * model$discount),
+       run_rate = sum(model$run_rate[result_ids] * w),
+       by_enabler = stats::setNames(tot * share, names(tot)))
 }
 
 #' Back-calculate the resources needed to meet dates
@@ -231,8 +265,7 @@ tornado <- function(data, graph, cfg, base, cfg_table, result_ids = graph$result
 #'
 #' Deadlines per scope:
 #' * "due": every result by its own due date (end of its due month).
-#' * "milestones" / "results": every milestone / every result by `target`.
-#' * "enablers": every enabler goes live by `target`.
+#' * "date": every result by a common `target` date.
 #' For a result, the deadline applies to its required enablers and all
 #' their prerequisites (the result is ready only when all are live).
 #' pull_prereqs: an accelerated enabler's prerequisites are accelerated
@@ -243,7 +276,7 @@ tornado <- function(data, graph, cfg, base, cfg_table, result_ids = graph$result
 #' get the most they can usefully take.
 #' @return list(resources, blockers, feasible, target, scope).
 solve_target <- function(data, graph, cfg, target = NA_real_,
-                         scope = c("due", "milestones", "results", "enablers"),
+                         scope = c("due", "date"),
                          pull_prereqs = TRUE, r_max = 5) {
   scope <- match.arg(scope)
   e <- data$enabler
@@ -254,11 +287,8 @@ solve_target <- function(data, graph, cfg, target = NA_real_,
     k <- (deadline - plan$start[i]) / plan$duration_plan[i]
     k_req[[ids[i]]] <<- min(k_req[[ids[i]]], k)
   }
-  if (scope == "enablers") {
-    for (i in which(plan$end > target + 1e-9)) need(i, target)
-  } else {
+  {
     r <- data$result
-    if (scope == "milestones") r <- r[r$kind == "milestone", ]
     deadline <- if (scope == "due") due_to_time(r$due) else rep(target, nrow(r))
     for (j in seq_len(nrow(r))) {
       ch <- graph$chains[[r$id[j]]]

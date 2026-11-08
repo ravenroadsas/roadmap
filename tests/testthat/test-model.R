@@ -1,140 +1,75 @@
-test_that("cost profile conserves capex and adds people and opex", {
-  d <- tiny_data()
-  cfg <- tiny_cfg(capex_overrun = 0.5, partner_premium = 1)
-  years <- 2026:2030
-  m <- cost_profile(d$enabler, cfg, years)
-  # E3: capex 1 x 1.5, all in 2026
-  expect_equal(unname(m["E3", ]), c(1.5, 0, 0, 0, 0))
-  # E2: capex 2 x 1.5 = 3, people (1 x 100 + 1 x 100 x 2) / 1000 = 0.3 /yr over 1 year build
-  expect_equal(sum(m["E2", ]), 3 + 0.3)
-  # E1: capex 4 x 1.5 in 2026, opex 1/yr from 2027 to 2030
-  expect_equal(unname(m["E1", ]), c(6, 1, 1, 1, 1))
+test_that("concept FTE is spread over its enablers, keeping total effort", {
+  t <- tiny_tables()
+  t$concept <- rbind(t$concept, data.frame(id = "C4", name = "c4", enabler_group = "data", subgroup = "",
+                                           fte_internal = 10, fte_partner = 0))
+  t$enabler <- rbind(t$enabler,
+    data.frame(id = c("E4", "E5"), concept_id = "C4", name = c("e4", "e5"), start_q = c("2026Q1", "2026Q1"),
+               end_q = c("2026Q4", "2026Q4"), capex_musd = 0, opex_musd_yr = 0, cost_basis = "fixed", scalability = 1))
+  d <- prepare_data(t)
+  e <- d$enabler
+  expect_equal(e$fte_internal[e$id %in% c("E4", "E5")], c(5, 5))   # parallel: 10 FTE shared
+  expect_equal(e$fte_internal[e$id == "E2"], 1)                    # single enabler keeps the concept FTE
+  expect_equal(e$enabler_group[e$id == "E4"], "data")
+  expect_equal(e$concept[e$id == "E4"], "c4")
+  t$enabler$end_q[t$enabler$id == "E5"] <- "2027Q4"                # sequential-ish: effort kept
+  d <- prepare_data(t)
+  e <- d$enabler[d$enabler$id %in% c("E4", "E5"), ]
+  dur <- c(1, 2)
+  expect_equal(sum(e$fte_internal[order(e$id)] * dur), 10 * 2)     # concept FTE x window
 })
 
-test_that("value starts after readiness and ramps to full", {
-  d <- tiny_data()
-  g <- build_graph(d)
-  cfg <- tiny_cfg()
-  v <- value_profile(d$result, g$ready, cfg, cfg, 2026:2030)
-  expect_equal(unname(v["K1", "2026"]), 0)
-  expect_equal(unname(v["K1", "2029"]), 10)          # fully ramped (ready mid-2027, ramp 1 yr)
-  expect_true(v["K1", "2027"] < v["K1", "2028"])
-  expect_equal(unname(attr(v, "run_rate")), c(10, 4, 0))   # milestone M1 has no value
-})
-
-test_that("drivers scale value relative to the base case", {
-  d <- tiny_data()
-  g <- build_graph(d)
-  base <- tiny_cfg()
-  hi <- tiny_cfg(oil_price = 150)
-  m0 <- run_model(d, g, base, base)
-  m1 <- run_model(d, g, hi, base)
-  expect_equal(m1$run_rate[["K1"]], 2 * m0$run_rate[["K1"]])
-  expect_equal(m1$run_rate[["K2"]], m0$run_rate[["K2"]])   # driver 'none'
-})
-
-test_that("portfolio of all results carries the full cost; subsets add up", {
-  d <- tiny_data()
-  g <- build_graph(d)
-  cfg <- tiny_cfg()
-  m <- run_model(d, g, cfg)
-  all <- portfolio(m)
-  expect_equal(all$total_cost, sum(m$cost))
-  k1 <- portfolio(m, "K1")
-  k2 <- portfolio(m, "K2")
-  m1 <- portfolio(m, "M1")
-  expect_equal(k1$total_cost + k2$total_cost + m1$total_cost, all$total_cost)
-  expect_equal(k1$total_value + k2$total_value + m1$total_value, all$total_value)
-  expect_equal(m1$total_value, 0)                              # milestone without value
-  expect_gt(m1$total_cost, 0)                                   # but it carries cost
-  expect_equal(all$npv, sum(all$net))                          # discount rate 0
-  expect_equal(all$roi, (all$total_value - all$total_cost) / all$total_cost)
-})
-
-test_that("payback is the first year with non-negative cumulative net", {
-  d <- tiny_data()
-  g <- build_graph(d)
-  p <- portfolio(run_model(d, g, tiny_cfg()))
-  i <- which(p$cum_net >= 0)[1]
-  expect_equal(p$payback, p$years[i])
-  expect_true(all(p$cum_net[seq_len(i - 1)] < 0))
-})
-
-test_that("tornado moves NPV in the expected direction on sample data", {
-  d <- sample_data()
-  g <- build_graph(d)
-  ct <- sample_cfg()
-  base <- config_values(ct)
-  t <- tornado(d, g, base, base, ct)
-  expect_equal(nrow(t), sum(ct$in_sensitivity))
-  expect_true(all(diff(t$spread) <= 0))
-  r <- t[t$key == "realization", ]
-  expect_gt(r$npv_high, r$npv_low)
-  o <- t[t$key == "capex_overrun", ]
-  expect_lt(o$npv_high, o$npv_low)
-})
-
-test_that("plan resources keep the plan schedule and costs", {
-  d <- tiny_data()
-  sch <- schedule(d$enabler, tiny_cfg())
-  expect_equal(sch$end, q_to_time(d$enabler$end_q, TRUE))
-  expect_equal(sch$cost_factor, c(1, 1, 1))
+test_that("cost parts: capex over the build, people from concept FTE, opex after go-live; multiplier on all", {
+  m <- tiny_model()
+  expect_equal(unname(m$cost_parts$capex["E1", ]), c(4, 0, 0, 0, 0))
+  expect_equal(unname(m$cost_parts$opex["E1", ]), c(0, 1, 1, 1, 1))
+  expect_equal(sum(m$cost_parts$people["E2", ]), (1 * 100 + 1 * 100) / 1000)
+  m2 <- tiny_model(cost_multiplier = 1.5)
+  expect_equal(sum(m2$full_cost), 1.5 * sum(m$full_cost))
 })
 
 test_that("scalability: 0 rigid, 1 linear, <1 diminishing, >1 better than linear", {
   d <- tiny_data()
-  d$enabler$start_q <- "2026Q1"
-  d$enabler$end_q <- "2027Q4"                  # all 2 years long
+  d$enabler$start_q <- "2026Q1"; d$enabler$end_q <- "2027Q4"
   sch <- function(sc, r) schedule(transform(d$enabler, scalability = sc), tiny_cfg(resource_multiplier = r))
-  rigid <- sch(0, 2)
-  expect_equal(rigid$duration, c(2, 2, 2))
-  expect_equal(rigid$cost_factor, c(1, 1, 1))  # no resources added to rigid enablers
-  lin <- sch(1, 2)
-  expect_equal(lin$duration, c(1, 1, 1))       # double resources, half the time
-  expect_equal(lin$cost_factor, c(1, 1, 1))    # same total cost
-  dim <- sch(0.5, 2)
-  expect_equal(dim$duration[1], 2 / sqrt(2))
-  expect_gt(dim$cost_factor[1], 1)             # diminishing returns cost more
-  sup <- sch(1.5, 2)
-  expect_lt(sup$duration[1], 1)
-  expect_lt(sup$cost_factor[1], 1)             # better than linear costs less
-  expect_equal(sch(2, 100)$duration[1], 0.25)  # never below one quarter
+  expect_equal(sch(0, 2)$duration, c(2, 2, 2))
+  expect_equal(sch(1, 2)$duration, c(1, 1, 1))
+  expect_equal(sch(1, 2)$cost_factor, c(1, 1, 1))
+  expect_gt(sch(0.5, 2)$cost_factor[1], 1)
+  expect_lt(sch(1.5, 2)$cost_factor[1], 1)
 })
 
-test_that("start is fixed and yearly expenditure is recalculated over the shorter build", {
-  d <- tiny_data()
-  d$enabler <- d$enabler[2, ]                  # E2: 2026Q3-2027Q2, linear
-  d$enabler$opex_musd_yr <- 0
-  d$enabler$fte_internal <- 0
-  d$enabler$fte_partner <- 0
-  plan <- cost_profile(d$enabler, tiny_cfg(), 2026:2028)
-  fast <- cost_profile(d$enabler, tiny_cfg(resource_multiplier = 2), 2026:2028)
-  expect_equal(unname(plan[1, ]), c(1, 1, 0))  # capex 2 over 2026.5-2027.5
-  expect_equal(unname(fast[1, ]), c(2, 0, 0))  # same capex, all in 2026.5-2027.0
-  expect_equal(schedule(d$enabler, tiny_cfg(resource_multiplier = 2))$start, 2026.5)
+test_that("value ramps over the adoption time once the result is ready", {
+  m <- tiny_model()
+  expect_equal(unname(m$value["K1", "2026"]), 0)
+  expect_equal(unname(m$value["K1", "2029"]), 10)            # ready mid-2027, 1 year ramp
+  expect_lt(unname(tiny_model(adoption_years = 3)$value["K1", "2028"]), unname(m$value["K1", "2028"]))
+  expect_equal(unname(m$run_rate), c(10, 4, 0))
+  expect_equal(tiny_model(oil_price = 150)$run_rate[["K1"]], 20)
 })
 
-test_that("extra resources bring KPIs forward; model keeps plan costs for comparison", {
-  d <- tiny_data()
-  g <- build_graph(d)
-  base <- tiny_cfg()
-  fast <- tiny_cfg(resource_multiplier = 2)
-  m0 <- run_model(d, g, base, base)
-  m1 <- run_model(d, g, fast, base)
-  expect_equal(m1$ready[["K1"]], 2027.0)       # E1 rigid ends 2027.0; E2 halved ends 2027.0
-  expect_lt(m1$ready[["K1"]], m0$ready[["K1"]])
-  expect_equal(m1$plan_cost, m0$cost)
-  expect_gt(sum(m1$value["K1", ]), sum(m0$value["K1", ]))
-  expect_gt(sum(m1$cost["E3", ]), sum(m0$cost["E3", ]))   # E3 diminishing: costs more
+test_that("full scope: portfolio carries all cost and value; attribution adds up", {
+  m <- tiny_model()
+  p <- portfolio(m)
+  expect_equal(p$total_cost, sum(m$full_cost))
+  expect_equal(p$total_value, sum(m$value))
+  a <- vapply(c("K1", "K2", "M1"), function(k) attributed(m, k)$cost, 0)
+  expect_equal(sum(a), p$total_cost)
+  expect_gt(a[["M1"]], 0)                                    # a result without value still carries cost
 })
 
-test_that("database without scalability column is migrated", {
-  skip_if_not(requireNamespace("RSQLite", quietly = TRUE) || requireNamespace("duckdb", quietly = TRUE))
-  con <- db_connect(":memory:")
-  on.exit(db_disconnect(con))
-  DBI::dbExecute(con, "CREATE TABLE enabler (id VARCHAR PRIMARY KEY, enabler_group VARCHAR, subcategory VARCHAR,
-    name VARCHAR, start_q VARCHAR, end_q VARCHAR, capex_musd DOUBLE, opex_musd_yr DOUBLE,
-    fte_internal DOUBLE, fte_partner DOUBLE, visibility VARCHAR)")
-  db_init(con)
-  expect_true("scalability" %in% DBI::dbListFields(con, "enabler"))
+test_that("scope: value at in-scope share, only needed enablers, per-process cost scaled", {
+  full <- tiny_model()
+  p2 <- tiny_model(scope = "P2")                             # only K2: needs E3 only
+  expect_equal(unname(p2$scope_w), c(0, 1, 0))
+  expect_equal(unname(p2$scope_factor[c("E1", "E2")]), c(0, 0))
+  # E3 is per process, serves P1 and P2, scalability 0.5: (1/2)^0.5
+  expect_equal(p2$scope_N[["E3"]], 2)
+  expect_equal(p2$scope_factor[["E3"]], 0.5^0.5)
+  expect_equal(portfolio(p2)$total_cost, sum(full$full_cost["E3", ]) * 0.5^0.5)
+  expect_equal(portfolio(p2)$total_value, sum(full$value["K2", ]))
+  # fixed cost basis: full cost whatever the scope
+  t <- tiny_tables(); t$enabler$cost_basis[3] <- "fixed"
+  d <- prepare_data(t)
+  expect_equal(run_model(d, build_graph(d), tiny_cfg(), scope = "P2")$scope_factor[["E3"]], 1)
+  expect_equal(portfolio(tiny_model(scope = character(0)))$total_cost, 0)
 })

@@ -6,15 +6,6 @@ xlsx_from <- function(tabs, drop_sheet = NULL) {
   writexl::write_xlsx(tabs, f)
   f
 }
-tiny_tables <- function() {
-  d <- tiny_data()
-  lapply(stats::setNames(names(INPUT_SPEC), names(INPUT_SPEC)), function(t) {
-    if (is.null(d[[t]])) return(as.data.frame(stats::setNames(replicate(length(INPUT_SPEC[[t]]), character(0),
-                                                                          simplify = FALSE), names(INPUT_SPEC[[t]]))))
-    d[[t]][, names(INPUT_SPEC[[t]])]
-  })
-}
-
 test_that("packaged workbook loads and every sheet has its columns", {
   x <- read_input_excel(input_path())
   expect_named(x, ROADMAP_TABLES)
@@ -41,8 +32,8 @@ test_that("optional columns get defaults; extra columns, blank rows and loose fo
   tabs$enabler$scalability <- NULL
   tabs$enabler$comment <- "ignored"
   tabs$result$value_driver <- NULL
-  tabs$result$value_musd[3] <- NA                           # milestone without value
-  tabs$result$kind[3] <- "Milestone"                        # case is tolerated
+  tabs$result$value_musd[3] <- NA                           # result without value
+  tabs$enabler$cost_basis <- c("", "Per_Process", "fixed")    # empty -> fixed; case tolerated
   tabs$enabler$start_q[1] <- "2026 q1"
   tabs$result$due[3] <- "2026-3"
   tabs$result_enabler <- rbind(tabs$result_enabler, data.frame(result_id = NA, enabler_id = NA, weight = NA))
@@ -50,7 +41,7 @@ test_that("optional columns get defaults; extra columns, blank rows and loose fo
   expect_equal(x$enabler$scalability, c(0, 0, 0))
   expect_equal(x$result$value_driver, c("none", "none", "none"))
   expect_equal(x$result$value_musd[3], 0)
-  expect_equal(x$result$kind[3], "milestone")
+  expect_equal(x$enabler$cost_basis, c("fixed", "per_process", "fixed"))
   expect_false("comment" %in% names(x$enabler))
   expect_equal(x$enabler$start_q[1], "2026Q1")
   expect_equal(x$result$due[3], "2026-03")
@@ -61,7 +52,6 @@ test_that("problems are all reported with sheet, column and row", {
   skip_if_not_installed("writexl")
   tabs <- tiny_tables()
   tabs$result$due <- NULL                                   # required column missing
-  tabs$result$baseline[1] <- NA                             # a KPI needs a baseline
   tabs$enabler$capex_musd <- c("4", "two", "1")            # not a number (row 3)
   tabs$enabler$end_q[3] <- "Q3 2027"                        # not a quarter (row 4)
   tabs$process <- rbind(tabs$process, tabs$process[1, ])    # duplicate ID
@@ -77,12 +67,16 @@ test_that("broken references and bad groups are reported after the format checks
   skip_if_not_installed("writexl")
   tabs <- tiny_tables()
   tabs$result_enabler$result_id[1] <- "K9"
-  tabs$enabler$enabler_group[2] <- "software"
+  tabs$concept$enabler_group[2] <- "software"
+  tabs$enabler$cost_basis[1] <- "shared"
+  tabs$enabler$concept_id[3] <- "C9"
   tabs$result$baseline[1] <- NA
   tabs$result$value_driver <- c("oil_price", "gas", "none")
   err <- tryCatch(read_input_excel(xlsx_from(tabs)), error = conditionMessage)
   expect_match(err, "unknown result", fixed = TRUE)
-  expect_match(err, "result K1: a KPI needs baseline and target", fixed = TRUE)
+  expect_match(err, "result K1: a measure needs both baseline and target", fixed = TRUE)
+  expect_match(err, "cost_basis 'shared'", fixed = TRUE)
+  expect_match(err, "unknown concept C9", fixed = TRUE)
   expect_match(err, "value_driver 'gas'", fixed = TRUE)
   expect_match(err, "enabler_group 'software'", fixed = TRUE)
 })
@@ -92,7 +86,7 @@ test_that("date conflicts do not block the import", {
   tabs <- tiny_tables()
   tabs$enabler$end_q[3] <- "2025Q4"                         # ends before it starts
   expect_silent(x <- read_input_excel(xlsx_from(tabs)))
-  expect_equal(nrow(date_issues(x)), 1)
+  expect_equal(nrow(date_issues(prepare_data(x))), 1)
 })
 
 test_that("config comes from the workbook's config sheet", {

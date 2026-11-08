@@ -5,9 +5,9 @@
 CONFIG_PIN_NAME <- "roadmap_config"
 CONFIG_COLUMNS <- c("key", "label", "unit", "value", "min", "max", "step",
                     "low", "high", "is_pct", "in_sensitivity", "description")
-CONFIG_REQUIRED <- c("oil_price", "realization", "adoption_delay", "ramp_years",
-                     "capex_overrun", "fte_cost", "partner_premium",
-                     "discount_rate", "horizon_end")
+# v2: four levers (in_sensitivity = TRUE) and fixed assumptions
+CONFIG_REQUIRED <- c("adoption_years", "oil_price", "cost_multiplier", "resource_multiplier",
+                     "realization", "fte_cost", "partner_premium", "discount_rate", "horizon_end")
 
 #' Read the configuration table
 #'
@@ -47,8 +47,7 @@ parse_bool <- function(x) {
 #' Check and type the configuration table
 #'
 #' Stops with every problem listed: missing columns or keys, values that
-#' are not numbers or TRUE/FALSE, duplicate keys, value outside min-max,
-#' low/high outside min-max.
+#' are not numbers or TRUE/FALSE, duplicate keys, value outside min-max.
 config_clean <- function(cfg, source = "config") {
   cfg <- as.data.frame(cfg, stringsAsFactors = FALSE)
   names(cfg) <- tolower(trimws(names(cfg)))
@@ -87,10 +86,7 @@ config_clean <- function(cfg, source = "config") {
     out_rng <- which(cfg$value < cfg$min | cfg$value > cfg$max)
     probs <- c(probs, sprintf("key '%s': value %s is outside min-max (%s-%s)",
                               cfg$key[out_rng], cfg$value[out_rng], cfg$min[out_rng], cfg$max[out_rng]))
-    sens <- which(cfg$in_sensitivity & (is.na(cfg$low) | is.na(cfg$high) |
-                                          cfg$low < cfg$min | cfg$high > cfg$max | cfg$low >= cfg$high))
-    probs <- c(probs, sprintf("key '%s': low/high must be inside min-max and low < high to be used in the tornado",
-                              cfg$key[sens]))
+
   }
   if (length(probs)) stop("Problems in ", source, ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
   rownames(cfg) <- NULL

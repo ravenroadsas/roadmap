@@ -1,4 +1,5 @@
-# Value chain: process -> results (KPIs and milestones) -> required enablers
+# Value chain: enablers make results possible; results generate value for
+# processes. process -> results -> required enablers
 # -> their prerequisites (foundations). Graph, attribution and date checks.
 
 #' Convert a quarter label ("2027Q3") to decimal years
@@ -38,7 +39,8 @@ graph_validate <- function(data) {
   re <- data$result_enabler
   probs <- c(
     sprintf("result %s: unknown process %s", r$id, r$process_id)[!r$process_id %in% data$process$id],
-    sprintf("result %s: kind '%s' must be kpi or milestone", r$id, r$kind)[!r$kind %in% c("kpi", "milestone")],
+    if (!is.null(data$concept)) sprintf("enabler %s: unknown concept %s", data$enabler$id, data$enabler$concept_id)[
+      !data$enabler$concept_id %in% data$concept$id],
     sprintf("result_enabler %s-%s: unknown enabler", re$result_id, re$enabler_id)[!re$enabler_id %in% e],
     sprintf("result_enabler %s-%s: unknown result", re$result_id, re$enabler_id)[!re$result_id %in% r$id],
     sprintf("dependency %s-%s: unknown enabler", dep$enabler_id, dep$requires_id)[

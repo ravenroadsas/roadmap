@@ -1,95 +1,59 @@
-# Data sent to the browser. The roadmap canvas (timeline, value chain,
-# KPI list, highlighting) runs client-side in inst/app/www/roadmap.js, so
-# clicks and hovers never round-trip to R. R only sends this payload when
-# data, filters or assumptions change.
+# Data sent to the browser canvas (inst/app/www/roadmap.js). Clicks, hover
+# and highlighting run client-side; R sends a payload when the scope, the
+# search or the scenario changes.
 
-#' Processes passing the process and owner filters
-filtered_processes <- function(data, filters) {
-  p <- data$process
-  sel_p <- filters$process %||% p$id
-  sel_o <- filters$owner %||% unique(p$owner)
-  p$id[p$id %in% sel_p & p$owner %in% sel_o]
-}
-
-#' Results passing the left-panel filters (process, owner, result type, search)
-#'
-#' The enabler-group filter does not remove results; it only hides enablers.
-filtered_result_ids <- function(data, graph, filters) {
-  k <- data$result
+#' Results matching the search (by name, or by the name of an enabler they require)
+search_results <- function(data, graph, query) {
+  q <- tolower(trimws(query %||% ""))
+  r <- data$result
+  if (!nzchar(q)) return(r$id)
   e <- data$enabler
-  keep <- process_weights(graph, k$id, filtered_processes(data, filters)) > 0 &
-    k$kind %in% (filters$kind %||% c("kpi", "milestone"))
-  q <- tolower(trimws(filters$query %||% ""))
-  if (nzchar(q)) {
-    hit <- vapply(k$id, function(i) {
-      en <- names(which(graph$weight[, i] > 0))
-      grepl(q, tolower(k$name[k$id == i]), fixed = TRUE) ||
-        any(grepl(q, tolower(e$name[e$id %in% en]), fixed = TRUE))
-    }, logical(1))
-    keep <- keep & hit
-  }
-  k$id[keep]
-}
-
-#' Is any left-panel filter narrowing the portfolio?
-filters_active <- function(data, filters) {
-  length(filtered_processes(data, filters)) < nrow(data$process) ||
-    nzchar(trimws(filters$query %||% "")) ||
-    length(filters$kind %||% c("kpi", "milestone")) < 2 ||
-    length(filters$group %||% GROUPS$id) < nrow(GROUPS)
+  hit <- vapply(r$id, function(i) {
+    ch <- graph$chains[[i]]
+    grepl(q, tolower(r$name[r$id == i]), fixed = TRUE) ||
+      any(grepl(q, tolower(paste(e$name, e$concept)[e$id %in% c(ch$direct, ch$foundation)]), fixed = TRUE))
+  }, logical(1))
+  r$id[hit]
 }
 
 #' Build the client payload
-#' @param filters list(process, owner, kind, group, query).
-viz_payload <- function(data, model, filters, ns_prefix = "") {
+#' @param model run_model() for the current scenario and scope.
+#' @param query search text.
+viz_payload <- function(data, model, query = "", ns_prefix = "") {
   g <- model$graph
-  k <- data$result
+  r <- data$result
   e <- data$enabler
-  q <- tolower(trimws(filters$query %||% ""))
-  procs <- filtered_processes(data, filters)
-  shown <- filtered_result_ids(data, g, filters)
-  k_show <- k$id %in% shown
-
-  # enablers: those behind the shown KPIs (plus foundations), in selected groups
-  if (length(procs) < nrow(data$process) || nzchar(q) || length(shown) < nrow(k)) {
-    direct <- rownames(g$weight)[rowSums(g$weight[, shown, drop = FALSE]) > 0]
-    e_ids <- union(direct, ancestors(direct, g$prereq))
-    if (nzchar(q)) e_ids <- union(e_ids, e$id[grepl(q, tolower(paste(e$name, e$subcategory)), fixed = TRUE)])
-  } else {
-    e_ids <- e$id
-  }
-  e_show <- e$id %in% e_ids & e$enabler_group %in% (filters$group %||% GROUPS$id)
-
+  scope <- model$scope %||% data$process$id
+  shown_r <- intersect(r$id[model$scope_w[r$id] > 0], search_results(data, g, query))
+  need <- unique(unlist(lapply(g$chains[shown_r], function(ch) c(ch$direct, ch$foundation))))
+  measure <- ifelse(r$measured, paste(fmt_num(r$baseline, r$unit), "\u2192", fmt_num(r$target, r$unit)), "")
+  pval <- vapply(data$process$id, function(p) sum(model$run_rate[r$id] * g$share[r$id, p]), 0)
   list(
     ns = ns_prefix,
     today = as.numeric(format(Sys.Date(), "%Y")) + (as.numeric(format(Sys.Date(), "%j")) - 1) / 365,
     groups = GROUPS,
     enablers = data.frame(
-      id = e$id, grp = e$enabler_group, sub = e$subcategory, name = e$name,
+      id = e$id, grp = e$enabler_group, sub = e$subgroup, concept = e$concept, name = e$name,
       start = e$start_q, end = e$end_q,
       t0 = q_to_time(e$start_q), t1 = model$schedule$end, t1_plan = q_to_time(e$end_q, TRUE),
       compression = round(model$schedule$compression, 3),
+      cost = round(rowSums(model$cost)[e$id], 2), basis = e$cost_basis,
+      n = unname(model$scope_n[e$id]), N = unname(model$scope_N[e$id]),
       issue = vapply(e$id, function(i) paste(model$issues$message[model$issues$enabler_id == i], collapse = "; "), ""),
-      capex = round(e$capex_musd * (1 + model$cfg$capex_overrun) * model$schedule$cost_factor, 2),
-      opex = e$opex_musd_yr, fte_int = e$fte_internal, fte_ext = e$fte_partner,
-      show = e_show, stringsAsFactors = FALSE
-    ),
+      show = e$id %in% need, stringsAsFactors = FALSE),
     prereq = g$prereq,
     issues = model$issues,
-    processes = data.frame(id = data$process$id, name = data$process$name,
-                           show = colSums(g$share[k$id[k_show], , drop = FALSE]) > 0 &
-                             data$process$id %in% procs),
+    processes = data.frame(id = data$process$id, name = data$process$name, owner = data$process$owner,
+                           value = round(pval, 2), show = data$process$id %in% scope),
     results = data.frame(
-      id = k$id, process = k$process_id, kind = k$kind, name = k$name, unit = k$unit,
-      procs = I(lapply(k$id, function(i) processes_of_result(g, i))),
-      shares = I(lapply(k$id, function(i) unname(round(g$share[i, processes_of_result(g, i)], 3)))),
-      baseline = k$baseline, target = k$target, due = k$due,
-      t_due = due_to_time(k$due), t_ready = unname(model$ready[k$id]),
-      late = k$id %in% model$late$result_id,
-      run = round(unname(model$run_rate[k$id]), 2),
-      process_name = data$process$name[match(k$process_id, data$process$id)],
-      show = k_show, stringsAsFactors = FALSE
-    ),
+      id = r$id, process = r$process_id, name = r$name, due = r$due,
+      procs = I(lapply(r$id, function(i) processes_of_result(g, i))),
+      shares = I(lapply(r$id, function(i) unname(round(g$share[i, processes_of_result(g, i)], 3)))),
+      t_due = due_to_time(r$due), t_ready = unname(model$ready[r$id]),
+      late = r$id %in% model$late$result_id, measured = r$measured, measure = measure,
+      run = round(unname(model$run_rate[r$id]), 2),
+      run_scope = round(unname(model$run_rate[r$id] * model$scope_w[r$id]), 2),
+      show = r$id %in% shown_r, stringsAsFactors = FALSE),
     links = data.frame(enabler = data$result_enabler$enabler_id,
                        result = data$result_enabler$result_id,
                        weight = data$result_enabler$weight)

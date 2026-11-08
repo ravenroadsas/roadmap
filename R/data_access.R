@@ -1,14 +1,15 @@
 # All data interaction lives in this file.
 # Input: an Excel workbook with one sheet per table plus a 'config' sheet
-# (process, result, enabler, result_enabler, enabler_dependency, config)
+# (process, result, result_process, concept, enabler, result_enabler,
+# enabler_dependency, config)
 # (ROADMAP_INPUT_XLSX, default inst/extdata/roadmap_input.xlsx). It is the source of truth: at
 # startup it is validated and loaded into the database, replacing its content.
 # Development: DuckDB (file or in-memory).
 # Enterprise: swap db_connect() for an odbc / RPostgres connection; the rest
 # uses plain DBI + portable SQL, so callers do not change.
 
-ROADMAP_TABLES <- c("process", "result", "result_process", "enabler", "result_enabler",
-                    "enabler_dependency")
+ROADMAP_TABLES <- c("process", "result", "result_process", "concept", "enabler",
+                    "result_enabler", "enabler_dependency")
 # sheets that may be left out of the workbook (read as empty)
 OPTIONAL_SHEETS <- "result_process"
 
@@ -56,15 +57,8 @@ db_init <- function(con) {
   invisible(con)
 }
 
-#' Add columns introduced after a database file was created
-db_migrate <- function(con) {
-  # scalability replaces the short-lived compressibility column (different
-  # meaning, so values are not carried over: 0 = rigid until filled in)
-  if (!"scalability" %in% DBI::dbListFields(con, "enabler")) {
-    DBI::dbExecute(con, "ALTER TABLE enabler ADD COLUMN scalability DOUBLE DEFAULT 0")
-  }
-  invisible(con)
-}
+#' Hook for columns added after a database file was created (none in v2)
+db_migrate <- function(con) invisible(con)
 
 #' Read every roadmap table into a named list of data frames
 db_read_all <- function(con) {
@@ -72,12 +66,7 @@ db_read_all <- function(con) {
     DBI::dbGetQuery(con, paste0("SELECT * FROM ", t, " ORDER BY 1"))
   })
   names(out) <- ROADMAP_TABLES
-  # keep the enabler order defined in the source (group, then start)
-  grp_order <- c("people", "digital", "data", "infra")
-  e <- out$enabler
-  out$enabler <- e[order(match(e$enabler_group, grp_order), e$start_q, e$id), ]
-  rownames(out$enabler) <- NULL
-  out
+  prepare_data(out)
 }
 
 #' Table metadata for the data-model tab: columns and row counts
@@ -109,28 +98,32 @@ INPUT_SPEC <- list(
     name = list("chr", TRUE, NA, "Process name"),
     owner = list("chr", TRUE, NA, "Accountable role (used as a filter)")),
   result = list(
-    id = list("chr", TRUE, NA, "Result ID, e.g. K-P2-01 (KPI) or M-P2-01 (milestone)"),
-    process_id = list("chr", TRUE, NA, "Process ID"),
-    kind = list("chr", TRUE, NA, "kpi or milestone"),
-    name = list("chr", TRUE, NA, "What is measured (KPI) or achieved (milestone)"),
-    due = list("month", TRUE, NA, "Due date, YYYY-MM (KPI: when the target is due)"),
-    unit = list("chr", FALSE, "", "KPI: unit of baseline and target (%, $M, days...)"),
-    baseline = list("num", FALSE, NA, "KPI: current value (required for KPIs)"),
-    target = list("num", FALSE, NA, "KPI: value at full adoption (required for KPIs)"),
-    value_musd = list("num", FALSE, 0, "Annual value when achieved, $M (0 if none)"),
-    value_driver = list("chr", FALSE, "none", "oil_price, fte_cost or none")),
-  enabler = list(
-    id = list("chr", TRUE, NA, "Enabler ID, e.g. E-P2-01 or E-X-01"),
+    id = list("chr", TRUE, NA, "Result ID, e.g. R-P04-01"),
+    process_id = list("chr", TRUE, NA, "Lead process (accountable owner)"),
+    name = list("chr", TRUE, NA, "The tangible result, e.g. 250 wells per engineer"),
+    due = list("month", TRUE, NA, "Due date, YYYY-MM"),
+    value_musd = list("num", FALSE, 0, "Annual value once achieved, $M (0 if none)"),
+    value_driver = list("chr", FALSE, "none", "oil_price, fte_cost or none"),
+    unit = list("chr", FALSE, "", "Optional measure: unit of baseline and target"),
+    baseline = list("num", FALSE, NA, "Optional measure: current value"),
+    target = list("num", FALSE, NA, "Optional measure: value when achieved")),
+  concept = list(
+    id = list("chr", TRUE, NA, "Concept ID, e.g. C-ROC"),
+    name = list("chr", TRUE, NA, "Concept name, e.g. Remote operations"),
     enabler_group = list("chr", TRUE, NA, "people, digital, data or infra"),
-    subcategory = list("chr", FALSE, "", "Free text"),
+    subgroup = list("chr", FALSE, "", "Free text, e.g. Automation"),
+    fte_internal = list("num", FALSE, 0, "Average internal FTE on the concept over its build window"),
+    fte_partner = list("num", FALSE, 0, "Average partner / contractor FTE over its build window")),
+  enabler = list(
+    id = list("chr", TRUE, NA, "Enabler ID, e.g. E-X-01"),
+    concept_id = list("chr", TRUE, NA, "Concept the enabler belongs to"),
     name = list("chr", TRUE, NA, "What is built"),
     start_q = list("quarter", TRUE, NA, "Start quarter, YYYYQn"),
     end_q = list("quarter", TRUE, NA, "Go-live quarter, YYYYQn"),
     capex_musd = list("num", FALSE, 0, "One-off investment, $M"),
     opex_musd_yr = list("num", FALSE, 0, "Running cost per year after go-live, $M"),
-    fte_internal = list("num", FALSE, 0, "Average internal FTE during the build"),
-    fte_partner = list("num", FALSE, 0, "Average partner / contractor FTE during the build"),
-    scalability = list("num", FALSE, 0, "0 rigid, 1 linear, >1 better than linear")),
+    cost_basis = list("chr", FALSE, "fixed", "fixed, or per_process (scales with the processes in scope)"),
+    scalability = list("num", FALSE, 0, "0 rigid, 1 linear, >1 better than linear (time and per-process cost)")),
   result_process = list(
     result_id = list("chr", TRUE, NA, "Result shared by several processes (optional sheet)"),
     process_id = list("chr", TRUE, NA, "A process that shares it; list the lead process too"),
@@ -143,7 +136,8 @@ INPUT_SPEC <- list(
     enabler_id = list("chr", TRUE, NA, "Enabler that needs something"),
     requires_id = list("chr", TRUE, NA, "Enabler it needs"))
 )
-INPUT_KEYS <- list(process = "id", result = "id", result_process = c("result_id", "process_id"), enabler = "id",
+INPUT_KEYS <- list(process = "id", result = "id", result_process = c("result_id", "process_id"),
+                   concept = "id", enabler = "id",
                    result_enabler = c("result_id", "enabler_id"),
                    enabler_dependency = c("enabler_id", "requires_id"))
 
@@ -235,21 +229,22 @@ read_input_excel <- function(path = input_path()) {
     out[[t]] <- res
   }
   if (!length(probs)) {
-    empty <- c("process", "result", "enabler", "result_enabler")
+    empty <- c("process", "result", "concept", "enabler", "result_enabler")
     empty <- empty[vapply(out[empty], nrow, 1L) == 0]
     probs <- c(probs, sprintf("sheet '%s' has no rows", empty))
   }
   if (!length(probs)) {
     r <- out$result
-    r$kind <- tolower(r$kind)
-    out$result$kind <- r$kind
-    kpi_miss <- r$kind == "kpi" & (is.na(r$baseline) | is.na(r$target))
+    half <- xor(is.na(r$baseline), is.na(r$target))
+    out$enabler$cost_basis <- tolower(out$enabler$cost_basis)
     probs <- c(probs,
-      sprintf("result %s: a KPI needs baseline and target", r$id)[kpi_miss],
+      sprintf("result %s: a measure needs both baseline and target", r$id)[half],
       sprintf("result %s: value_driver '%s' must be oil_price, fte_cost or none", r$id, r$value_driver)[
         !r$value_driver %in% c("oil_price", "fte_cost", "none")],
-      sprintf("enabler %s: enabler_group '%s' must be people, digital, data or infra",
-              out$enabler$id, out$enabler$enabler_group)[!out$enabler$enabler_group %in% GROUPS$id],
+      sprintf("concept %s: enabler_group '%s' must be people, digital, data or infra",
+              out$concept$id, out$concept$enabler_group)[!out$concept$enabler_group %in% GROUPS$id],
+      sprintf("enabler %s: cost_basis '%s' must be fixed or per_process",
+              out$enabler$id, out$enabler$cost_basis)[!out$enabler$cost_basis %in% c("fixed", "per_process")],
       graph_validate(out))
   }
   if (length(probs)) stop("Problems in ", basename(path), ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
@@ -303,9 +298,9 @@ write_input_excel <- function(path, data = NULL, config = config_read(board_type
     default = c("", "", "", "", "", "", "", "", "", "FALSE", "FALSE", ""),
     description = c("Parameter name used by the model (do not rename)", "Label in the app",
                     "Unit shown next to the value", "Base-case value", "Slider minimum",
-                    "Slider maximum", "Slider step", "Low value for the NPV tornado",
-                    "High value for the NPV tornado", "Show as a percentage (0.15 -> 15%)",
-                    "Include in the NPV tornado", "Help text under the slider"),
+                    "Slider maximum", "Slider step", "(not used in v2)", "(not used in v2)",
+                    "Show as a percentage (0.15 -> 15%)", "Show as a lever in the Scenario view",
+                    "Help text under the slider"),
     stringsAsFactors = FALSE))
   cfg <- config[, CONFIG_COLUMNS]
   writexl::write_xlsx(c(list(README = readme), sheets, list(config = cfg)), path)
