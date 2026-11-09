@@ -6,7 +6,10 @@ test_that("empty tables, ids and new items", {
   expect_named(e, names(INPUT_SPEC))
   expect_equal(nrow(e$enabler), 0)
   t <- ed()
-  expect_equal(next_id(t, "process"), "P03")                 # tiny ids are P1, P2: next free number is 3
+  expect_equal(next_id(t, "process"), "P3")                  # follows the existing pattern P1, P2
+  expect_equal(next_id(empty_tables(), "enabler"), "E-01")    # default prefix when empty
+  t2 <- t; t2$enabler$id <- c("E08", "E09", "X-1")
+  expect_equal(next_id(t2, "enabler"), "E10")
   t$enabler$id <- c("E-01", "E-02", "E-07")
   expect_equal(next_id(t, "enabler"), "E-08")
   n <- new_item(t, "enabler")
@@ -52,7 +55,7 @@ test_that("connections: rules, loops, sharing, concepts", {
   expect_equal(connect_nodes(t, "enabler:E2", "result:K1"), "already connected")
   expect_match(connect_nodes(t, "result:K1", "enabler:E1"), "a result can't be connected to a enabler")
   # E2 needs E1: making E1 need E2 closes a loop, named in order
-  expect_equal(connect_nodes(t, "enabler:E2", "enabler:E1"), "this would close a loop: e1 → e2 → e1")
+  expect_equal(connect_nodes(t, "enabler:E2", "enabler:E1"), "this would close a loop: e1 \u2192 e2 \u2192 e1")
   d <- connect_nodes(t, "enabler:E3", "enabler:E2")
   expect_equal(d$message, "e2 now needs e3 first")
   s <- connect_nodes(t, "result:K1", "process:P2")
@@ -98,4 +101,10 @@ test_that("in-memory validation and lenient import", {
   y <- read_input_excel(f, strict = FALSE)
   expect_match(attr(y, "problems"), "enabler_dependency' is missing", all = FALSE)
   expect_equal(nrow(y$enabler), 3)
+})
+
+test_that("board payload works on empty tables", {
+  p <- board_payload(empty_tables())
+  expect_equal(nrow(p$links), 0)
+  expect_true(all(vapply(p$cols, function(c) nrow(c$items), 0) == 0))
 })

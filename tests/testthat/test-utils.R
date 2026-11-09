@@ -3,7 +3,7 @@ test_that("formatting helpers", {
   expect_match(fmt_musd(-3), "^.+\\$3\\.0M$")
   expect_equal(fmt_pct(0.256), "26%")
   expect_equal(fmt_num(9800, "bbl"), "9,800 bbl")
-  expect_equal(fmt_cfg(list(key = "cost_multiplier", unit = "x", is_pct = FALSE), 1.2), "×1.20")
+  expect_equal(fmt_cfg(list(key = "cost_multiplier", unit = "x", is_pct = FALSE), 1.2), "\u00d71.20")
 })
 
 test_that("selection parsing and search", {
@@ -23,7 +23,7 @@ test_that("payload: shown results and the enablers they need", {
   expect_equal(p$results$id[p$results$show], "K2")
   expect_equal(p$enablers$id[p$enablers$show], "E3")
   expect_equal(p$enablers$concept[p$enablers$id == "E3"], "c3")
-  expect_equal(p$results$measure[p$results$id == "K1"], "1% → 2%")
+  expect_equal(p$results$measure[p$results$id == "K1"], "1% \u2192 2%")
   expect_false(p$results$measured[p$results$id == "M1"])
 })
 

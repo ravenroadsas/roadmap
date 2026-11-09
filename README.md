@@ -18,6 +18,24 @@ CONCEPT ─groups─► ENABLER ──makes possible (weight)──► RESULT �
 | **Scenario** | What if: adoption time, oil price, cost multiplier, and acceleration (plan, more resources, every result by a target date, or every result by its due date). One chart of cumulative net value against the base case, and what acceleration costs. |
 | **Model** | How it works: the chain, eight definitions, and the data workbook (download, template). |
 
+## Editor
+
+A companion app to build and edit the roadmap without touching Excel cell by cell. It works on a **copy**: import, edit, export. It never writes the workbook the roadmap app reads.
+
+| Step | What you do |
+|---|---|
+| **1 · Start** | Import a workbook (filled template, agent output, previous export), open a copy of the app's current workbook, or start empty. Download the empty template. Import problems are listed but don't block editing. |
+| **2 · Items** | Add, edit, duplicate and delete processes, results, concepts and enablers: dates, value, measure, capex, opex, cost basis, scalability, FTE. Renaming an ID updates every reference; deleting removes the item's connections. |
+| **3 · Connections** | Drag one box onto another. Enabler → result: the result requires it. Enabler → enabler: the second needs the first (loops are refused, with the path). Result → process: share the result. Enabler → concept: move it. Click a box to focus its links, click a line to set its weight or share, or remove it (Delete). |
+| **4 · Check & export** | Problems that would stop the roadmap app, then the headline and warnings (late results, late foundations) from the same model. Download the workbook (README, tables, config). |
+
+Undo (Ctrl+Z) covers every change; the header shows unsaved changes and the browser warns before leaving. Each session has its own copy, so a few editors can work at once; whoever publishes replaces the app's workbook with an export.
+
+```r
+shiny::runApp("editor_app.R")                  # local
+# Posit Connect: deploy the repository again (app.R) and set ROADMAP_APP=editor
+```
+
 ## What changed from v1
 
 - **One result category.** KPI and milestone are merged: every result has a due date and a value; a *measure* (unit, baseline → target) is optional. A result without a measure is a step change, achieved or not.
@@ -67,7 +85,13 @@ R/
   fct_views.R        headline figures, SVG chart, concept diagram
   fct_timing.R       scenario vs base
   mod_roadmap_*, mod_scenario_*, mod_model_*   one ui / server pair per view
+  run_editor.R       editor app: shell, shared state, undo
+  editor_data.R      editor operations: items, connections, board payload, import
+  fct_editor_views.R editor lists, relations, link descriptions, model check
+  mod_edit_start_*, mod_edit_items_*, mod_edit_board_*, mod_edit_export_*   editor steps
 inst/app/www/        styles.css, roadmap.js (chronogram, value chain, client-side)
+inst/editor/www/     editor.css, editor.js (drag-to-connect board)
+app.R, editor_app.R  launch files (roadmap app, editor)
 docs/data_authoring_guide.md   how the authoring agent formats the data
 ```
 
@@ -88,6 +112,7 @@ devtools::test()
 | `ROADMAP_DB_DRIVER` | `duckdb`, `sqlite` or `auto` | `auto` |
 | `ROADMAP_PINS_BOARD` | `connect` or `folder` to read the config from a pin instead of the config sheet | config sheet |
 | `ROADMAP_PINS_PATH` | folder for a folder board | |
+| `ROADMAP_APP` | `editor` makes `app.R` serve the editor (second Connect deployment) | roadmap app |
 
 On Posit Connect the signed-in user is shown in the header; there is no access split inside the app (control access with the Connect content settings).
 

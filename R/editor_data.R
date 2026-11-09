@@ -27,15 +27,28 @@ clean_tables <- function(t) {
   out
 }
 
-#' Next free id for an item kind: P09, R-12, C-03, E-22
+#' Next free id for an item kind, following the ids already used
+#'
+#' The most common "prefix + number" pattern among existing ids is kept
+#' (E01, E02 -> E03; R-P04-01 -> R-P04-02); default prefixes otherwise.
 next_id <- function(t, kind) {
   ids <- t[[kind]]$id
-  pre <- ID_PREFIX[[kind]]
-  pat <- paste0("^", gsub("-", "\\\\-", pre), "(\\d+)$")
-  n <- suppressWarnings(as.integer(sub(pat, "\\1", ids[grepl(pat, ids)])))
-  nxt <- if (length(n)) max(n) + 1 else 1
+  ids <- ids[!is.na(ids)]
+  m <- regmatches(ids, regexec("^(.*?)(\\d+)$", ids))
+  m <- m[lengths(m) == 3]
+  if (length(m)) {
+    pre <- vapply(m, `[`, "", 2)
+    num <- vapply(m, `[`, "", 3)
+    best <- names(which.max(table(pre)))
+    width <- max(nchar(num[pre == best]))
+    nxt <- max(as.numeric(num[pre == best])) + 1
+  } else {
+    best <- ID_PREFIX[[kind]]
+    width <- 2
+    nxt <- 1
+  }
   repeat {
-    id <- sprintf("%s%02d", pre, nxt)
+    id <- paste0(best, formatC(nxt, width = width, flag = "0", format = "d"))
     if (!id %in% ids) return(id)
     nxt <- nxt + 1
   }
@@ -273,16 +286,41 @@ board_payload <- function(t, ns_prefix = "") {
     link_df("rp", others$result_id, others$process_id, "result", "process", others$share),
     link_df("cpt", e$id, e$concept_id, "enabler", "concept"))
   lbl <- function(x, id) ifelse(is.na(x) | x == "", id, x)
+  key <- function(k, x) if (length(x)) paste0(k, ":", x) else character(0)
+  gname <- GROUPS$name[match(cpt$enabler_group, GROUPS$id)]
   list(
     ns = ns_prefix,
     cols = list(
       list(key = "concept", title = "Concepts",
-           items = df(id = paste0("concept:", cpt$id), name = lbl(cpt$name, cpt$id), g = cpt$enabler_group)),
+           items = df(id = key("concept", cpt$id), name = lbl(cpt$name, cpt$id), g = cpt$enabler_group,
+                      meta = ifelse(is.na(gname), "", gname))),
       list(key = "enabler", title = "Enablers",
-           items = df(id = paste0("enabler:", e$id[ord]), name = lbl(e$name[ord], e$id[ord]), g = grp[ord])),
+           items = df(id = key("enabler", e$id[ord]), name = lbl(e$name[ord], e$id[ord]), g = grp[ord],
+                      meta = if (nrow(e)) paste0(e$start_q[ord], " \u2013 ", e$end_q[ord]) else character(0))),
       list(key = "result", title = "Results",
-           items = df(id = paste0("result:", r$id), name = lbl(r$name, r$id), g = rep("", nrow(r)))),
+           items = df(id = key("result", r$id), name = lbl(r$name, r$id), g = rep("", nrow(r)),
+                      meta = ifelse(is.na(r$due), "", r$due))),
       list(key = "process", title = "Processes",
-           items = df(id = paste0("process:", p$id), name = lbl(p$name, p$id), g = rep("", nrow(p))))),
+           items = df(id = key("process", p$id), name = lbl(p$name, p$id), g = rep("", nrow(p)),
+                      meta = ifelse(is.na(p$owner), "", p$owner)))),
     links = links)
+}
+
+#' Default assumptions (config sheet of the packaged template)
+default_config <- function() {
+  path <- app_sys("extdata", "roadmap_input_template.xlsx")
+  config_clean(read_config_excel(path), "template config")
+}
+
+#' Import a workbook for editing (never fails on content problems)
+#' @return list(tables, cfg, src, probs): problems are listed, not raised.
+editor_import <- function(path, name = basename(path)) {
+  t <- read_input_excel(path, strict = FALSE)
+  probs <- attr(t, "problems")
+  cfg <- tryCatch(config_clean(read_config_excel(path), "config"), error = function(e) NULL)
+  if (is.null(cfg)) {
+    cfg <- default_config()
+    probs <- c(probs, "config sheet missing or invalid: the default assumptions are used and exported")
+  }
+  list(tables = clean_tables(t), cfg = cfg, src = name, probs = probs)
 }
