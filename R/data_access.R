@@ -173,9 +173,12 @@ coerce_col <- function(x, type) {
 #' One sheet per table, named like the table, header in the first row.
 #' Column order does not matter; extra columns and sheets are ignored;
 #' fully empty rows are dropped; optional columns get their default.
-#' Stops with one message listing every problem found.
+#' Stops with one message listing every problem found (strict), or returns
+#' what could be read with the problems in attribute "problems" (lenient,
+#' used by the editor to load a workbook that still needs fixing).
+#' @param strict stop on problems (TRUE) or return them (FALSE).
 #' @return named list of data frames, one per table.
-read_input_excel <- function(path = input_path()) {
+read_input_excel <- function(path = input_path(), strict = TRUE) {
   if (!file.exists(path)) stop("Input workbook not found: ", path)
   sheets <- readxl::excel_sheets(path)
   probs <- character(0)
@@ -184,7 +187,7 @@ read_input_excel <- function(path = input_path()) {
     spec <- INPUT_SPEC[[t]]
     if (!t %in% sheets && !t %in% OPTIONAL_SHEETS) {
       probs <- c(probs, sprintf("sheet '%s' is missing", t))
-      next
+      if (strict) next
     }
     df <- if (t %in% sheets) {
       as.data.frame(readxl::read_excel(path, sheet = t, col_types = "list", .name_repair = "minimal"))
@@ -228,27 +231,57 @@ read_input_excel <- function(path = input_path()) {
     rownames(res) <- NULL
     out[[t]] <- res
   }
-  if (!length(probs)) {
-    empty <- c("process", "result", "concept", "enabler", "result_enabler")
-    empty <- empty[vapply(out[empty], nrow, 1L) == 0]
-    probs <- c(probs, sprintf("sheet '%s' has no rows", empty))
+  if (strict && length(probs)) {
+    stop("Problems in ", basename(path), ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
   }
-  if (!length(probs)) {
-    r <- out$result
-    half <- xor(is.na(r$baseline), is.na(r$target))
-    out$enabler$cost_basis <- tolower(out$enabler$cost_basis)
-    probs <- c(probs,
-      sprintf("result %s: a measure needs both baseline and target", r$id)[half],
-      sprintf("result %s: value_driver '%s' must be oil_price, fte_cost or none", r$id, r$value_driver)[
-        !r$value_driver %in% c("oil_price", "fte_cost", "none")],
-      sprintf("concept %s: enabler_group '%s' must be people, digital, data or infra",
-              out$concept$id, out$concept$enabler_group)[!out$concept$enabler_group %in% GROUPS$id],
-      sprintf("enabler %s: cost_basis '%s' must be fixed or per_process",
-              out$enabler$id, out$enabler$cost_basis)[!out$enabler$cost_basis %in% c("fixed", "per_process")],
-      graph_validate(out))
+  if (!is.null(out$enabler)) out$enabler$cost_basis <- tolower(out$enabler$cost_basis)
+  probs <- c(probs, validate_tables(out, basic = FALSE))
+  if (strict && length(probs)) {
+    stop("Problems in ", basename(path), ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
   }
-  if (length(probs)) stop("Problems in ", basename(path), ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
+  attr(out, "problems") <- probs
   out
+}
+
+#' Check a set of tables in memory
+#'
+#' Content rules shared by the import and the editor: sheets that must
+#' have rows, allowed values, measures, references and dependency cycles.
+#' @param basic also check required fields and duplicate keys (the import
+#'   reports those itself, with row numbers).
+#' @return character vector of problems (empty when valid).
+validate_tables <- function(t, basic = TRUE) {
+  probs <- character(0)
+  if (basic) for (n in names(INPUT_SPEC)) {
+    df <- t[[n]]
+    if (is.null(df) || !nrow(df)) next
+    for (col in names(INPUT_SPEC[[n]])) {
+      if (!INPUT_SPEC[[n]][[col]][[2]]) next
+      v <- df[[col]]
+      bad <- is.null(v) | is.na(v) | trimws(as.character(v)) == ""
+      if (any(bad)) probs <- c(probs, sprintf("%s: %s is empty for %s", n, col,
+        paste(if ("id" %in% names(df)) ifelse(is.na(df$id[bad]) | df$id[bad] == "", "(no id)", df$id[bad]) else which(bad),
+              collapse = ", ")))
+    }
+    key <- do.call(paste, c(df[INPUT_KEYS[[n]]], sep = " / "))
+    dup <- unique(key[duplicated(key)])
+    if (length(dup)) probs <- c(probs, sprintf("%s: duplicate %s", n, paste(dup, collapse = ", ")))
+  }
+  empty <- c("process", "result", "concept", "enabler", "result_enabler")
+  empty <- empty[vapply(empty, function(n) is.null(t[[n]]) || nrow(t[[n]]) == 0, TRUE)]
+  probs <- c(probs, sprintf("sheet '%s' has no rows", empty))
+  if (length(empty)) return(probs)
+  r <- t$result
+  half <- xor(is.na(r$baseline), is.na(r$target))
+  c(probs,
+    sprintf("result %s: a measure needs both baseline and target", r$id)[half],
+    sprintf("result %s: value_driver '%s' must be oil_price, fte_cost or none", r$id, r$value_driver)[
+      !r$value_driver %in% c("oil_price", "fte_cost", "none")],
+    sprintf("concept %s: enabler_group '%s' must be people, digital, data or infra",
+            t$concept$id, t$concept$enabler_group)[!t$concept$enabler_group %in% GROUPS$id],
+    sprintf("enabler %s: cost_basis '%s' must be fixed or per_process",
+            t$enabler$id, t$enabler$cost_basis)[!t$enabler$cost_basis %in% c("fixed", "per_process")],
+    graph_validate(t))
 }
 
 #' Read the 'config' sheet of the input workbook (raw; see config_clean())
