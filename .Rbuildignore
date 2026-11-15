@@ -4,3 +4,4 @@
 ^\.git$
 ^data$
 ^editor_app\.R$
+^skills$
