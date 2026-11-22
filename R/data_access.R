@@ -10,6 +10,12 @@
 
 ROADMAP_TABLES <- c("process", "milestone", "metric", "metric_milestone", "curve", "concept",
                     "enabler", "milestone_enabler", "enabler_dependency")
+# database load order: a table comes after the tables it references (DuckDB
+# enforces foreign keys); deletes and drops run in reverse
+DB_TABLES <- c("process", "curve", "milestone", "metric", "metric_milestone", "concept",
+               "enabler", "milestone_enabler", "enabler_dependency")
+# tables of earlier versions, dropped from a database file created by them
+LEGACY_TABLES <- c("result_enabler", "result_process", "result")
 # sheets that may be left out of the workbook (curve: the default curves are used)
 OPTIONAL_SHEETS <- "curve"
 
@@ -51,7 +57,12 @@ sql_statements <- function(path) {
 }
 
 #' Create the schema (tables are filled by db_import())
+#'
+#' The database is rebuilt from the workbook at every start, so existing
+#' tables (including those of an earlier version in a database file) are
+#' dropped first: a file created by v2 keeps no stale schema.
 db_init <- function(con) {
+  for (t in c(LEGACY_TABLES, rev(DB_TABLES))) DBI::dbExecute(con, paste("DROP TABLE IF EXISTS", t))
   for (s in sql_statements(app_sys("sql", "schema.sql"))) DBI::dbExecute(con, s)
   db_migrate(con)
   invisible(con)
@@ -80,11 +91,15 @@ db_table_info <- function(con) {
 }
 
 #' Replace the content of every roadmap table
+#'
+#' The tables are rebuilt rather than emptied: DuckDB checks foreign keys
+#' against rows deleted earlier in the same transaction, so deleting and
+#' reloading referenced tables would fail.
 #' @param tables named list of data frames (from read_input_excel()).
 db_import <- function(con, tables) {
+  db_init(con)
   DBI::dbWithTransaction(con, {
-    for (t in rev(ROADMAP_TABLES)) DBI::dbExecute(con, paste("DELETE FROM", t))
-    for (t in ROADMAP_TABLES) if (nrow(tables[[t]])) DBI::dbAppendTable(con, t, tables[[t]])
+    for (t in DB_TABLES) if (nrow(tables[[t]])) DBI::dbAppendTable(con, t, tables[[t]])
   })
   invisible(con)
 }
@@ -181,7 +196,7 @@ coerce_col <- function(x, type) {
   v <- trimws(as.character(x))
   if (type == "level") {                      # accepts 3, "3", "M3", "m3"
     n <- suppressWarnings(as.numeric(sub("^[Mm]\\s*", "", v)))
-    return(list(n, which(!blank & !(n %in% 1:5))))
+    return(list(as.integer(ifelse(n %in% 1:5, n, NA)), which(!blank & !(n %in% 1:5))))
   }
   if (type == "quarter") {
     v <- toupper(gsub("\\s|-", "", v))

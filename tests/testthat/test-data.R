@@ -25,3 +25,24 @@ test_that("config: four levers and the fixed assumptions", {
   expect_true(all(CONFIG_REQUIRED %in% ct$key))
   expect_error(config_clean(ct[ct$key != "oil_price", ]), "oil_price")
 })
+
+test_that("database load order respects foreign keys; earlier schemas are replaced", {
+  # every table comes after the tables it references (DuckDB enforces this)
+  sql <- paste(sql_statements(app_sys("sql", "schema.sql")), collapse = ";")
+  for (t in DB_TABLES) {
+    body <- regmatches(sql, regexpr(paste0("CREATE TABLE IF NOT EXISTS ", t, " \\([^;]*"), sql))
+    refs <- unique(sub("REFERENCES ", "", regmatches(body, gregexpr("REFERENCES [a-z_]+", body))[[1]]))
+    expect_true(all(match(refs, DB_TABLES) < match(t, DB_TABLES)), info = t)
+  }
+  expect_setequal(DB_TABLES, ROADMAP_TABLES)
+  skip_if_not(requireNamespace("RSQLite", quietly = TRUE) || requireNamespace("duckdb", quietly = TRUE))
+  f <- tempfile(fileext = ".db")
+  con <- db_connect(f)
+  DBI::dbExecute(con, "CREATE TABLE process (id VARCHAR PRIMARY KEY, name VARCHAR, owner VARCHAR)")   # v2 schema
+  DBI::dbExecute(con, "CREATE TABLE result (id VARCHAR PRIMARY KEY, process_id VARCHAR REFERENCES process(id))")
+  db_disconnect(con)
+  d <- load_roadmap_data(f)
+  expect_true("current_level" %in% names(d$process))
+  con <- db_connect(f); on.exit(db_disconnect(con))
+  expect_false("result" %in% DBI::dbListTables(con))
+})
