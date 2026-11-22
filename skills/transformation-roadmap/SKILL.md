@@ -1,6 +1,6 @@
 ---
 name: transformation-roadmap
-description: Build or extend a digital transformation roadmap as structured data (processes with digital maturity M1-M5, milestones, metrics with impact curves, concepts, enablers, dependencies) in the roadmap workbook format. Use when asked to plan a transformation, assess a process's digital maturity, turn process interviews or documents into roadmap rows, estimate value and cost of transformation initiatives, identify the enablers (people, digital, data, infrastructure) a milestone needs, or check a roadmap workbook for consistency.
+description: Build, extend, review or refine a digital transformation roadmap as structured data (processes with digital maturity M1-M5, milestones, metrics with impact curves, concepts with internal / part-time / partner people, enablers, dependencies) in the roadmap workbook format read by the roadmap dashboard. Use when asked to plan a transformation, assess a process's digital maturity, turn process interviews or documents into roadmap rows, estimate the value, cost and people of transformation initiatives, identify the enablers (people, digital, data, infrastructure) a milestone needs, check a roadmap workbook, or act on the dashboard's results (late milestones, frontier, resources, audit export).
 ---
 
 # Digital transformation roadmap
@@ -8,6 +8,21 @@ description: Build or extend a digital transformation roadmap as structured data
 You help build a digital transformation roadmap. A roadmap here is not a slide: it is a small, connected data model that a dashboard reads to show **what** is built, **when**, for **what value**, **what depends on what**, and which **digital maturity** targets are worth pursuing. Your job is to reason from the evidence about one business process at a time and express the result as rows in the exact format below, with the reasoning kept in notes.
 
 > **Avoid bias.** Derive every maturity level, milestone, metric, enabler and number from the material you are given about the organisation and its processes. The example at the end shows the *format*, not the content: do not reuse its names, milestones, metrics, values or dates. Do not assume an industry, a technology vendor or a "standard" list of initiatives. If the evidence is thin, say so and ask, rather than filling gaps with generic transformation programmes.
+
+---
+
+## 0. How to work
+
+Pick the mode that matches the request; ask for what is missing (section 4) before producing rows.
+
+| Mode | When | What you do |
+|---|---|---|
+| **New roadmap** | No workbook yet | Agree the list of processes, owners and the shared foundations first (one short round), then build process by process. Start the catalogue with the four proposed curves. |
+| **Extend** | A workbook exists; a new process or more detail | Work on one process against the current catalogue (the latest exported workbook); reuse its concepts and enablers; output only new or changed rows. |
+| **Review** | "Check this workbook" | Run every check in section 7 and the anti-patterns in section 5.2; report problems by sheet, ID and rule, with the fix; do not silently rewrite. |
+| **Refine** | Results from the dashboard or its audit export | Read the findings (section 8) and propose changes: dates, levels, links, targets, costs — each with the reason. |
+
+Always: one process at a time, evidence before numbers, every number traceable to a note, placeholders flagged.
 
 ---
 
@@ -36,15 +51,22 @@ INVESTMENT → ENABLER ─────┴──► MILESTONE ──► METRIC �
 
 ### 1.1 What the dashboard computes from your rows
 
-You do not compute these, but your numbers drive them, so keep them consistent:
+You do not compute these, but your numbers drive them, so keep them consistent.
 
-- **Scope**: milestones at or below each process's target are pursued; the enablers they require, with their foundations, are the investment. `per_process` enablers scale as (processes needing / served) ^ scalability.
-- **Ready date** of a milestone = the latest go-live among its required enablers and their prerequisites; **late** if after the end of the due month (allowed: a finding, not an error). A process reaches level L when its milestones up to L are ready.
-- **Metric value**: as its linked milestones become ready, the metric climbs its curve from the current level. Each step adds (curve(L) − curve(previous)) / (curve(M5) − curve(current)) of its value, ramped linearly over the adoption time, × realisation × driver factor (price or labour cost vs base).
-- **Cost per year** = capex over the build + concept people during the build (partner at a premium) + opex from go-live, × a cost multiplier lever.
-- **Acceleration**: duration × r^(−scalability), start fixed; effort × r^(1 − scalability).
-- **Frontier**: every combination of maturity targets is evaluated; the efficient frontier shows the combinations with the best NPV for their investment.
-- **Level check**: an enabler of a higher level than a milestone that requires it is flagged.
+| Quantity | Calculation |
+|---|---|
+| **Targets** | Each process's target, kept between its current level and M5. In the dashboard the user changes targets per process (Scenario view); `target_level` is the base case. |
+| **Scope** | A milestone is pursued when `level ≤ target` of its process. Milestones above the target are out (no cost, no value). |
+| **Investment** | The enablers the pursued milestones require, plus their foundations (all prerequisites). Each needed enabler costs in full (`fixed`) or × (processes needing it / processes it serves at any level) ^ `scalability` (`per_process`). |
+| **Cost per year** | capex spread evenly over the build; people during the build: internal FTE × `fte_cost` + SME FTE × `fte_cost` × `sme_cost_factor` + partner FTE × `fte_cost` × (1 + `partner_premium`) ($k → $M); opex from go-live to the horizon; everything × `cost_multiplier`. |
+| **Ready date** | A milestone is ready when its last required enabler or foundation goes live; **late** when after the end of its due month (allowed, shown in red). A process reaches level L when its milestones above the current level and up to L are ready; a level with no milestone is reached with the next one up. |
+| **Metric steps** | A metric climbs through the levels of its linked, pursued milestones; it reaches level L when every linked milestone up to L is ready. Each step adds share = (curve(L) − curve(previous)) / (curve(M5) − curve(current)). Staying at the current level gives 0; reaching M5 gives 100%. |
+| **Value per year** | `value_musd` × `realization` × driver factor (scenario price or FTE cost ÷ base) × Σ steps (share × adoption ramp). The ramp goes linearly from 0 at the step date to 1 after `adoption_years`, averaged over the quarters of each year. |
+| **NPV, ROI, payback** | Net = value − cost per year, from the first enabler start year to `horizon_end`. NPV discounts yearly net by 1 / (1 + `discount_rate`)^(year − start year). ROI = (total value − total cost) / total cost. Payback = first year the cumulative net is ≥ 0. |
+| **Acceleration** | Optional: more resources r shorten an enabler to duration × r^(−scalability) (start fixed) and scale its effort by r^(1 − scalability); the app can solve r per enabler so that pursued milestones meet their due dates. |
+| **Frontier** | Every combination of targets (each process from current to M5) is evaluated; the efficient frontier shows the best NPV for each investment, or the best ROI for investing at least that much. |
+| **Resources** | Cash per year by type, and FTE per year: internal team, SMEs (FTE-equivalent), partners. |
+| **Checks** | Late milestones; a prerequisite going live after the enabler that needs it; an enabler whose level is above a milestone that requires it. All shown, none blocking. |
 
 ### 1.2 Maturity levels
 
@@ -56,7 +78,24 @@ You do not compute these, but your numbers drive them, so keep them consistent:
 | **M4 Automated** | Automation and data-driven decisions | Workflows, rules, algorithms and models execute, validate, detect deviations, recommend or decide; people handle exceptions. |
 | **M5 Adaptive** | Anticipation and continuous optimisation | Real-time data, advanced analytics and AI anticipate and adjust execution, learning continuously within set limits. |
 
-Assess the current level on six dimensions — digitalisation of activities, integration and architecture, data management and quality, automation, intelligence and decisions, adaptability and optimisation — and set the level the evidence supports on most of them. Frameworks behind the scale: BPMM (OMG), acatech Industrie 4.0 Maturity Index, CMMI, Deloitte Digital and AI Maturity.
+### 1.3 Assessing the current level
+
+Score the process on six dimensions, each from M1 to M5, from evidence (interviews, documents, system landscape). Then set `current_level` to the level most dimensions support (the median is a good default). As a sanity rule, do not rate a process more than one level above its data dimension (D3): automation and AI on unreliable data do not hold.
+
+| Dimension | M1 | M2 | M3 | M4 | M5 |
+|---|---|---|---|---|---|
+| **D1 Digitalisation of activities** | paper, local files; depends on individuals | apps and forms support tasks; re-typing and parallel records remain | standard digital tools in defined flows; owners, states and records traceable end to end | much of the flow runs automatically (workflows, smart forms, rules); people handle exceptions and approvals | execution adjusts to context; sequences optimised continuously within limits |
+| **D2 Integration and architecture** | isolated tools; exchange by email or files | tools per activity; partial integration; manual loads and reconciliations | key systems and actors exchange data through standard interfaces; flow visible end to end | systems orchestrated to run processes and events; integrations trigger validations, alerts and actions | flexible, scalable interoperability that adapts to demand and context, resilient and controlled |
+| **D3 Data management and quality** | scattered, manual, inconsistent definitions | digitised records, basic controls; duplicates and manual reconciliation | defined data, owners, sources and systematic quality controls; integrated, traceable view | monitored with indicators and automated controls; anomalies detected; recurring analytics | operational and contextual data used in time to anticipate; quality mechanisms learn; lineage and trust sustained |
+| **D4 Automation** | tasks, controls, calculations and transfers by hand | macros or scripts for specific tasks | repetitive tasks and hand-offs automated within integrated flows; documented rules | rules, workflows, RPA, algorithms or models run sequences and controls with monitoring | automation adjusts to results and conditions; orchestration optimises resources within safety and authorisation limits |
+| **D5 Intelligence and decisions** | experience and manual review | reports and descriptive indicators; retrospective | consistent indicators and integrated views; structured root-cause analysis | advanced analytics or predictive models recommend actions; some routine decisions automated within approved parameters | predictive / prescriptive models and optimisation; scenarios evaluated and actions adjusted continuously, explainable and supervised |
+| **D6 Adaptability and optimisation** | reactive, occasional improvement | periodic review; manual improvements | measured with indicators, owners and review routines; formal improvement cycle | continuous monitoring anticipates problems and triggers corrective or preventive actions; effects verified | learns from results and context; adjusts parameters, rules or recommendations continuously and under control |
+
+Questions that separate levels quickly: *How does information move between steps (people, files, interfaces, events)? Who decides, with what data, how fast? What runs without a person? What happens when conditions change?*
+
+### 1.4 Setting the target
+
+The target is the highest level worth reaching given expected value, technical, economic and operational feasibility, and risk — not M5 by default. Give each process milestones for every realistic level above its current one, so the frontier can price each step; the user then chooses targets with the Scenario and Frontier views. Say in the notes which levels you consider unrealistic and why.
 
 ---
 
@@ -101,13 +140,15 @@ infra ──► data ──► digital ──► MILESTONE
 
 ## 3. Data structure
 
-One Excel workbook, **one sheet per table**, column names in row 1 (lower case). A `README` sheet documents the columns, a `levels` sheet describes M1–M5, and a `config` sheet holds assumptions (read only: never output config rows).
+One Excel workbook, **one sheet per table**, column names in row 1 (lower case). Sheets: `process`, `milestone`, `metric`, `metric_milestone`, `curve` (optional: the four proposed curves are used if it is missing), `concept`, `enabler`, `milestone_enabler`, `enabler_dependency`, plus `config` (assumptions, read only: never output config rows), and the reference sheets `README` (every column) and `levels` (M1–M5), which the app does not read.
 
 General rules:
 - Exactly the listed column names; order does not matter; extra columns are ignored.
 - One row per record, no merged cells. Numbers are plain numbers: no units, `$` or thousands separators.
 - Quarters are text `YYYYQn`; months are text `YYYY-MM`; levels are `M1`…`M5`.
 - IDs are text, case-sensitive, no spaces, never reused or renumbered.
+- Levels may be written `M3`, `m3` or `3`. Months accept `2027-3`. Fully empty rows are skipped.
+- A `source` column (where each row comes from) is recommended on every sheet: the app ignores it, reviewers rely on it. Mark placeholder values clearly (the convention is an amber cell fill) and say so in the notes.
 
 ### 3.1 `process`
 | column | type | rules |
@@ -134,8 +175,8 @@ General rules:
 | `process_id` | text | The process whose value it is |
 | `name` | text | What is measured |
 | `unit`, `baseline`, `target` | text, number, number | Today and at full impact (M5); both or neither |
-| `value_musd` | number | **Annual** $M from the current level to M5, before realisation |
-| `value_driver` | text | `oil_price` (commodity price lever), `fte_cost` (saved people time) or `none` |
+| `value_musd` | number | **Annual** $M from the current level to M5 at full adoption, before realisation; 0 if none |
+| `value_driver` | text | `oil_price` (value moves with the commodity price lever), `fte_cost` (saved people time, moves with the loaded FTE cost) or `none` (fixed saving). Default `none`. |
 | `curve_id` | text | A curve from the `curve` sheet |
 
 ### 3.4 `metric_milestone`
@@ -150,7 +191,16 @@ General rules:
 | `id`, `name`, `description` | text | e.g. `concave`, *Diminishing returns* |
 | `m1` … `m5` | number | % of impact reached at each level, 0–100, never decreasing |
 
-Proposed curves: `concave` 0·45·75·92·100 (gain comes early), `threshold` 0·5·15·55·100 (gain only with automation), `linear` 0·25·50·75·100, `s_curve` 0·10·45·85·100 (gain with integration and automation).
+Proposed curves (shipped in the template):
+
+| id | M1·M2·M3·M4·M5 | use when |
+|---|---|---|
+| `concave` | 0·45·75·92·100 | most of the gain comes with the first steps (digitising, assisting); each further level adds less. Typical: production, availability, losses. |
+| `threshold` | 0·5·15·55·100 | little gain until work is automated; then large. Typical: man-hours saved, headcount ratios, throughput per person. |
+| `linear` | 0·25·50·75·100 | each level adds the same; use when there is no evidence for a shape. |
+| `s_curve` | 0·10·45·85·100 | gain concentrates on integration (M3) and automation (M4). Typical: cycle times, non-productive time, decision quality. |
+
+A new curve is allowed when none fits: add a `curve` row (values 0–100, never decreasing, `m5` normally 100) and justify it in the notes.
 
 ### 3.6 `concept`
 | column | type | rules |
@@ -162,6 +212,8 @@ Proposed curves: `concave` 0·45·75·92·100 (gain comes early), `threshold` 0�
 | `fte_internal` | number | Internal dedicated team: average FTE over the concept's build window (first start → last go-live) |
 | `fte_sme` | number | Optional. Part-time subject-matter experts and other staff, as FTE-equivalent (people × share of time: 6 at 20% = 1.2) |
 | `fte_partner` | number | Average partner / vendor / contractor FTE over the same window |
+
+People rules: someone fully on the project is `fte_internal`; someone who keeps their job and gives part of their time is `fte_sme` (people × share of time); external people time is `fte_partner`. The app spreads a concept's FTE over its enablers in proportion to their build duration (enabler FTE = concept FTE × window / Σ durations), so total effort (FTE × window) is kept. Vendor implementation paid as a contract goes in `capex_musd`, not in `fte_partner` — never both.
 
 ### 3.7 `enabler`
 | column | type | rules |
@@ -206,67 +258,157 @@ For `per_process` enablers, scalability also sets how cost shrinks when fewer pr
 
 ---
 
-## 4. How to build the roadmap
+### 3.11 `config` sheet (read only)
 
-Work **one process at a time**, always against the current catalogue (the latest exported workbook) so shared items are reused, not duplicated.
+Set by the roadmap team; never output rows. Know what each key does:
+
+| key | role | meaning |
+|---|---|---|
+| `adoption_years` | lever | time from a step being reached to its full value (linear ramp) |
+| `oil_price` | lever | commodity price; scales metrics with `value_driver = oil_price` (scenario ÷ base) |
+| `cost_multiplier` | lever | scales every cost (capex, people, opex) |
+| `resource_multiplier` | lever | extra resources on every scalable enabler (acceleration) |
+| `realization` | fixed | share of the target value actually achieved |
+| `fte_cost` | fixed | loaded cost per FTE, $k per year; also scales metrics with `value_driver = fte_cost` |
+| `partner_premium` | fixed | partner cost above internal FTE |
+| `sme_cost_factor` | fixed, optional | share of part-time SME time charged (1 = at the FTE cost, 0 = absorbed by the business; default 1) |
+| `discount_rate` | fixed | rate for NPV |
+| `horizon_end` | fixed | last year counted in cost and value |
+
+If a metric needs a driver that does not exist (e.g. a different commodity), use `none` and propose the key in the notes.
+
+---
+
+## 4. What to ask for
+
+Before producing rows for a process, make sure you have (or ask for) the following. Missing items become explicit assumptions with low confidence, never silent defaults.
+
+- **Process**: purpose, main steps, owner role, sites or teams covered, volumes (cases, assets, orders, units… per year).
+- **People and cost today**: who does the work, how many FTE or hours, loaded cost, overtime, contractors.
+- **Systems and data**: tools used per step, how data moves (files, re-typing, interfaces), data quality issues, real-time sources.
+- **Performance**: the measures management follows, with today's values (baselines), and the best achievable values (benchmarks, best periods, targets).
+- **Pain points and losses**: where time, cost, risk or production is lost, with an order of magnitude.
+- **Unit values**: price or margin per unit, cost per hour, cost of downtime, cost of capital — whatever turns the measures into money.
+- **Constraints**: regulation, safety, contracts, procurement lead times, union or organisational limits, budget windows.
+- **Existing initiatives**: projects already running or approved (to reuse as enablers or foundations, not duplicate).
+- **Ambition**: what management expects, by when.
+
+---
+
+## 5. How to build the roadmap
+
+Work **one process at a time**, always against the current catalogue so shared items are reused, not duplicated.
 
 1. **Understand the process** from the material given: how the work is done, where time, cost and risk go, and how humans, software, agents and machines would split the work at each level.
-2. **Assess the current level** on the six dimensions, and propose a **target** from expected value, technical, economic and operational feasibility, and risk.
-3. **Define the metrics** (1–4): measured outcomes with baseline today and target at M5. Value each: `value_musd ≈ Δ(target − baseline) × volume × unit value` per year. **Count value once.** Choose the impact curve that matches how the metric responds to maturity.
-4. **Define milestones per level**, from the level above the current one up to what is realistic (usually up to M5, so the frontier can price every level). Each is an observable step change with a due date.
-5. **Link milestones to metrics**: which milestones move which metric (several can converge on one).
+2. **Assess the current level** with the rubric (1.3), and propose a **target** (1.4).
+3. **Define the metrics** (1–4 per process): measured outcomes with baseline today and target at M5. Value each (5.1). **Count value once.** Choose the impact curve that matches how the metric responds to maturity.
+4. **Define milestones per level**, from the level above the current one up to what is realistic (usually M5). Each is an observable step change with a due date; one to three per level.
+5. **Link milestones to metrics**: which milestones move which metric (several can converge on one; a milestone can move several metrics). A milestone that moves no metric must still be needed (e.g. a compliance step) — say why.
 6. **Find the enablers per milestone**, group by group: the *digital* solution, the *data* it needs, the *infra* under that data, and the *people* change that makes it stick. Set each enabler's level; it must not exceed the level of a milestone that requires it. List only direct requirements; reach deeper foundations through dependencies.
-7. **Reuse before creating**: search the catalogue for an existing enabler or concept. New cross-process foundations get `E-X-<nn>`.
-8. **Group into concepts and plan people**; schedule (builds of 2–8 quarters), cost, cost basis and scalability, each traceable to a note.
+7. **Reuse before creating**: search the catalogue for an existing enabler or concept. New cross-process foundations get `E-X-<nn>`, written once.
+8. **Group into concepts and plan people** (internal team, SMEs, partners); schedule, cost, cost basis and scalability (5.1), each traceable to a note.
 9. **Check the chain** for each level: from value down to the deepest foundation. Keep real dates even if a milestone is late, and explain the gap.
-10. **Write the output** (section 5) and run the checklist (section 6).
+10. **Write the output** (section 6) and run the checklist (section 7).
 
-### Anti-patterns
+### 5.1 Estimating
+
+- **Value of a metric** (annual, current level → M5, at full adoption): Δ(target − baseline) × volume × unit value. Typical forms:
+  - production or availability: Δ% × potential volume × days × margin or price (driver `oil_price` when it follows the commodity price);
+  - time saved: Δ hours per case × cases × loaded hourly cost (driver `fte_cost`), or Δ FTE × loaded FTE cost;
+  - cost avoided: Δ cost per unit × units (driver `none`);
+  - working capital: Δ capital × cost of capital (driver `none`).
+  Show the inputs in the notes. If the value of a metric is already counted in another, set 0 on one of them.
+- **Capex**: vendor quotes, comparable projects, or bottom-up (licences + hardware + implementation). **Opex**: licences, support, cloud and hosting, maintenance per year after go-live.
+- **People**: think in roles × share of time × duration, then express as average FTE over the concept's window: dedicated team (`fte_internal`), part-time experts (`fte_sme`), partners (`fte_partner`).
+- **Durations**: builds usually take 2 to 8 quarters; split anything longer into phases linked by a dependency. Prerequisites go live on or before what needs them.
+- **Due dates**: the business commitment, not the enabler dates; let the dashboard show lateness.
+- **Cost basis**: `per_process` only when cost really grows with the processes covered (training per team, roll-out per site).
+- **Confidence**: give high / medium / low per number in the notes; low-confidence numbers are placeholders.
+
+### 5.2 Anti-patterns
 - Copying a generic "transformation programme" instead of deriving enablers from the process evidence.
 - Assigning levels by technology hype: an AI tool on scattered data does not make a process M4.
 - A milestone that is really an activity ("deploy tool X"): milestones are step changes; tools are enablers.
 - Enablers of a higher level than the milestones that need them; milestones at or below the current level.
 - Digital enablers with no data foundation or no people/adoption enabler.
-- The same benefit counted in two metrics, or the same cost in capex and partner FTE.
+- The same benefit counted in two metrics; the same cost in capex and partner FTE; the same person in two FTE columns.
 - A metric with no milestone, or a curve chosen without a reason.
-- Adjusting due dates to hide lateness; inventing process IDs.
+- Listing foundations directly on milestones (they come through dependencies).
+- Adjusting due dates to hide lateness; inventing process IDs; reusing an ID for something else.
 
 ---
 
-## 5. Output format
+## 6. Output format
 
-Output **only new or changed rows**, never the whole workbook. Changed rows repeat the full row with the same ID.
+Output **only new or changed rows**, never the whole workbook. Changed rows repeat the full row with the same ID and replace it.
 
-- If you can create files: an `.xlsx` with the same sheet names and columns; omit sheets with no rows.
+- If you can create files: an `.xlsx` with the same sheet names and columns; omit sheets with no rows; add a `source` column.
 - Otherwise: one CSV block per sheet, titled with the sheet name; quote text containing commas.
 
 Then the **notes**, in Markdown:
 
-- **Maturity assessment** — the six dimensions today, and why the target.
+- **Maturity assessment** — the six dimensions today (score and evidence), and why the target.
 - **Process summary** — today, and the human / digital / agent / machine split at each level.
-- **Milestones and levels** — why each milestone sits at its level.
-- **Metrics** — value calculation for each, and why its curve.
-- **Cost estimates** — basis for each capex, opex, concept FTE, every `per_process` choice and each enabler level.
+- **Milestones and levels** — why each milestone sits at its level; levels judged unrealistic.
+- **Metrics** — value calculation for each, its driver, and why its curve.
+- **Cost and people estimates** — basis for each capex, opex, concept FTE (internal, SME, partner), every `per_process` choice and each enabler level.
 - **Scalability** — values outside the typical range, and every value above 1, justified.
-- **Assumptions and sources** — what was given, what was assumed, confidence (high / medium / low).
-- **Reused and new shared enablers**, **changed rows**, **late milestones and date conflicts**, **open questions**.
+- **Assumptions and sources** — what was given, what was assumed, confidence (high / medium / low), placeholders.
+- **Reused and new shared enablers**, **changed rows**, **late milestones and date conflicts**, **open questions** for the process owner.
 
 ---
 
-## 6. Checklist
+## 7. Checks
 
+The app refuses a workbook with any **blocking** problem and lists them all (sheet, column, row). **Warnings** load and are shown in red. Check both before answering.
+
+**Blocking**
+- A required sheet or column is missing; a required value is empty; a duplicate ID or duplicate link.
+- A value of the wrong type: number, quarter `YYYYQn`, month `YYYY-MM`, level `M1`–`M5`.
+- `current_level` above `target_level`.
+- A metric with only one of baseline / target; a `value_driver` other than `oil_price`, `fte_cost`, `none`; an unknown `curve_id`.
+- A curve with values outside 0–100 or decreasing.
+- `enabler_group` not in `people`, `digital`, `data`, `infra`; `cost_basis` not `fixed` or `per_process`.
+- A reference to an unknown process, milestone, metric, concept or enabler.
+- A milestone that requires no enabler; a metric moved by no milestone.
+- A dependency cycle.
+- An empty `process`, `milestone`, `metric`, `metric_milestone`, `concept`, `enabler` or `milestone_enabler` sheet.
+
+**Warnings (allowed, explain them)**
+- A milestone ready after its due month.
+- A prerequisite going live after the enabler that needs it; an enabler ending before it starts.
+- An enabler whose level is above a milestone that requires it.
+
+**Checklist**
 - [ ] Column names exactly as listed; numbers without units; dates `YYYYQn` / `YYYY-MM`; levels `M1`–`M5`.
 - [ ] Every reference points to a row in the output or the catalogue.
-- [ ] Each process has `current_level` ≤ `target_level` and milestones for the levels above its current one.
+- [ ] Each process has `current_level` ≤ `target_level` and milestones for the realistic levels above its current one.
 - [ ] Every milestone has a level, a due month and at least one required enabler; no enabler is above a milestone that requires it.
-- [ ] Every metric has a value, a curve and at least one milestone; a measure has both baseline and target (at M5).
+- [ ] Every metric has a value, a driver, a curve and at least one milestone; a measure has both baseline and target (at M5).
 - [ ] Every enabler has a concept, a level, a cost basis and a scalability; digital enablers have data foundations and a people/adoption enabler.
-- [ ] Value counted once; no dependency cycles; only direct prerequisites listed.
-- [ ] Every number traces to a line in the notes; nothing was taken from the example below.
+- [ ] Value counted once; no person or cost counted twice; no dependency cycles; only direct prerequisites listed.
+- [ ] Every number traces to a line in the notes; placeholders are flagged; nothing was taken from the example below.
 
 ---
 
-## 7. Example (format only — fictitious)
+## 8. Reading the results and refining
+
+The dashboard has five views; the user may paste results or send the audit export (Scenario → export detail, an Excel with About, Cashflow, Assumptions, Targets, Value_by_metric, Value_steps, Value_by_year, Cost_by_enabler, Cost_by_year, Milestones, Resources).
+
+| Finding | Where | What to propose |
+|---|---|---|
+| Late milestone | Roadmap (red), Milestones sheet | check the critical enabler; start it earlier, split it, accelerate it (scalability), or confirm the due date is a stretch and say so |
+| Late dependency | Roadmap (red arrow) | move the prerequisite earlier or the dependent later; check the dependency is real |
+| Level warning | Method (level checks) | lower the enabler's level, raise the milestone's, or split the enabler |
+| A level that costs more than it returns | Frontier, Scenario by process | question its value estimate and curve, its costs, or recommend a lower target |
+| Base case below the frontier | Frontier | point to the frontier portfolio with similar investment and higher NPV, and the targets that differ |
+| Peaks in cash or people | Resources | shift start dates of non-critical enablers, rebalance internal team vs partners |
+| A metric with little value reached | Scenario, Value_by_metric | check its curve and which milestones move it; a missing link is common |
+| An enabler needed by one milestone only and expensive | Cost_by_enabler | challenge whether it is needed at that level, or whether it serves other processes |
+
+---
+
+## 9. Example (format only — fictitious)
 
 An abstract process to show how the sheets connect. Names, values and dates are placeholders: **do not reuse them**.
 
