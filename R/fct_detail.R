@@ -160,7 +160,7 @@ detail_enabler <- function(data, model, id) {
       Build = paste0(e$start_q, " \u2013 ", e$end_q,
                      if (sch$compression > 0.005) sprintf(" \u00b7 %s now (\u2212%.0f%%)", q_of(sch$end), sch$compression * 100)),
       Cost = sprintf("%s capex \u00b7 %s people \u00b7 %s opex", fmt_musd(cp[["capex"]]), fmt_musd(cp[["people"]]), fmt_musd(cp[["opex"]])),
-      `People` = sprintf("%.1f internal \u00b7 %.1f partner FTE", e$fte_internal, e$fte_partner),
+      `People` = sprintf("%.1f internal \u00b7 %.1f SME \u00b7 %.1f partner FTE", e$fte_internal, e$fte_sme, e$fte_partner),
       `Cost basis` = if (e$cost_basis == "per_process")
         sprintf("per process \u00b7 %d of %d need it \u00b7 \u00d7%.2f", model$scope_n[[id]], model$scope_N[[id]], f) else "fixed",
       Scalability = scalability_label(sch$scalability),

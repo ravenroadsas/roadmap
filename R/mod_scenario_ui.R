@@ -56,7 +56,10 @@ mod_scenario_ui <- function(id, cfg_table, data) {
       tags$div(class = "chart-wrap",
         tags$div(class = "pane-h", tags$span("Cumulative net value"),
                  tags$span(class = "hint", "line = scenario \u00b7 dashed = base \u00b7 bars = yearly value and cost, $M")),
-        shiny::uiOutput(ns("chart"))),
+        shiny::uiOutput(ns("chart")),
+        tags$div(class = "chart-foot",
+          shiny::downloadLink(ns("export"), "export detail (Excel)", class = "mini"),
+          tags$span(class = "hint", "year-by-year costs and gains, with every input and factor behind them, for audit"))),
       shiny::uiOutput(ns("maturity")),
       shiny::uiOutput(ns("timing")))
   )

@@ -54,8 +54,9 @@ CREATE TABLE IF NOT EXISTS concept (               -- group > subgroup > concept
   name           VARCHAR NOT NULL,
   enabler_group  VARCHAR NOT NULL,                 -- people | digital | data | infra
   subgroup       VARCHAR,
-  fte_internal   DOUBLE DEFAULT 0,                 -- average FTE over the concept's build window
-  fte_partner    DOUBLE DEFAULT 0
+  fte_internal   DOUBLE DEFAULT 0,                 -- dedicated internal team, average FTE over the build window
+  fte_sme        DOUBLE DEFAULT 0,                 -- part-time SMEs and others, FTE-equivalent
+  fte_partner    DOUBLE DEFAULT 0                  -- partners / contractors
 );
 
 CREATE TABLE IF NOT EXISTS enabler (

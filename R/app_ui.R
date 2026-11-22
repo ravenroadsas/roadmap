@@ -19,6 +19,7 @@ app_ui <- function(request) {
       shiny::tabPanel("Scenario", value = "scenario", mod_scenario_ui("scenario", ctx$cfg, ctx$data)),
       shiny::tabPanel("Frontier", value = "frontier", mod_frontier_ui("frontier")),
       shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
+      shiny::tabPanel("Resources", value = "resources", mod_resources_ui("resources")),
       shiny::tabPanel("Method", value = "model", mod_model_ui("model")))
   )
 }

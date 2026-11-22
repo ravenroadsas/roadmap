@@ -5,6 +5,7 @@ app_server <- function(input, output, session) {
   apply <- shiny::reactiveVal(NULL)
   scenario <- mod_scenario_server("scenario", ctx$data, ctx$graph, ctx$cfg, apply)
   mod_roadmap_server("roadmap", ctx$data, ctx$graph, scenario)
+  mod_resources_server("resources", ctx$data, ctx$graph, scenario)
   mod_frontier_server("frontier", ctx$data, ctx$graph, scenario, apply,
                       goto = function(tab) shiny::updateTabsetPanel(session, "view", selected = tab))
   mod_model_server("model", ctx$data, ctx$cfg)

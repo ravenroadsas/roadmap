@@ -30,8 +30,10 @@ prepare_data <- function(tables) {
   window <- tapply(s + d, e$concept_id, max) - tapply(s, e$concept_id, min)
   dsum <- tapply(d, e$concept_id, sum)
   k <- as.vector((window / dsum)[e$concept_id])
-  e$fte_internal <- unname(cpt$fte_internal[i] * k)
-  e$fte_partner <- unname(cpt$fte_partner[i] * k)
+  z <- function(x) ifelse(is.na(x), 0, x)
+  e$fte_internal <- unname(z(cpt$fte_internal[i]) * k)
+  e$fte_sme <- unname(z(if (is.null(cpt$fte_sme)) rep(0, nrow(cpt)) else cpt$fte_sme)[i] * k)
+  e$fte_partner <- unname(z(cpt$fte_partner[i]) * k)
   grp_order <- c("people", "digital", "data", "infra")
   e <- e[order(match(e$enabler_group, grp_order), e$concept, e$start_q, e$id), ]
   rownames(e) <- NULL
@@ -92,38 +94,52 @@ schedule <- function(enabler, cfg, resources = NULL) {
 #' Yearly cost of each enabler, split by type (before scope)
 #'
 #' * capex: capex x effort factor, spread evenly over the scenario build
-#' * people: concept FTE spread on the enabler (partner at a premium) x
-#'   resource multiplier, during the build
+#' * people: concept FTE spread on the enabler x resource multiplier, during
+#'   the build, in three parts: the internal dedicated team at the loaded FTE
+#'   cost; part-time subject-matter experts (SMEs) at the loaded FTE cost x
+#'   `sme_cost_factor` (1 = fully charged, 0 = absorbed by the business);
+#'   partners at the FTE cost plus the partner premium
 #' * opex: from the scenario go-live to the horizon
-#' All three are multiplied by the cost multiplier lever.
-#' @return list of three matrices (enabler x year): capex, people, opex.
+#' Everything is multiplied by the cost multiplier lever.
+#' @return list of matrices (enabler x year): capex, people (= people_internal
+#'   + people_sme + people_partner), opex, and the three people parts.
 cost_parts <- function(enabler, cfg, years, sched = schedule(enabler, cfg)) {
   s <- sched$start
   f <- sched$end
   m <- cfg$cost_multiplier %||% 1
   horizon <- max(years) + 1
-  people <- (enabler$fte_internal * cfg$fte_cost +
-             enabler$fte_partner * cfg$fte_cost * (1 + cfg$partner_premium)) / 1000 *
-    sched$people_factor * m
+  rate <- function(fte, k) fte * cfg$fte_cost * k / 1000 * sched$people_factor * m
+  sme <- if (is.null(enabler$fte_sme)) rep(0, nrow(enabler)) else enabler$fte_sme
+  p_int <- rate(enabler$fte_internal, 1)
+  p_sme <- rate(sme, cfg$sme_cost_factor %||% 1)
+  p_par <- rate(enabler$fte_partner, 1 + cfg$partner_premium)
   capex <- enabler$capex_musd * m * sched$cost_factor / sched$duration
   mk <- function(f_year) {
     matrix(vapply(years, f_year, numeric(nrow(enabler))), nrow = nrow(enabler),
            dimnames = list(enabler$id, years))
   }
-  list(
+  out <- list(
     capex = mk(function(y) capex * overlap(s, f, y)),
-    people = mk(function(y) people * overlap(s, f, y)),
+    people_internal = mk(function(y) p_int * overlap(s, f, y)),
+    people_sme = mk(function(y) p_sme * overlap(s, f, y)),
+    people_partner = mk(function(y) p_par * overlap(s, f, y)),
     opex = mk(function(y) enabler$opex_musd_yr * m * overlap(f, horizon, y))
   )
+  out$people <- out$people_internal + out$people_sme + out$people_partner
+  out[c("capex", "people", "opex", "people_internal", "people_sme", "people_partner")]
 }
 
-#' Average FTE working on enabler builds per year (scenario resources)
-fte_profile <- function(enabler, years, sched) {
-  b <- vapply(years, function(y) overlap(sched$start, sched$end, y), numeric(nrow(enabler)))
-  b <- matrix(b, nrow = nrow(enabler))
-  data.frame(year = years,
-             internal = colSums(b * enabler$fte_internal * sched$people_factor),
-             partner = colSums(b * enabler$fte_partner * sched$people_factor))
+#' FTE working on enabler builds per year, by kind (enabler x year matrices)
+#'
+#' Average FTE over each year: concept FTE spread on the enabler x the
+#' scenario resource multiplier, during the scenario build.
+#' @param factor optional per-enabler scope factor (0 = not needed).
+fte_parts <- function(enabler, years, sched, factor = NULL) {
+  b <- matrix(vapply(years, function(y) overlap(sched$start, sched$end, y), numeric(nrow(enabler))),
+              nrow = nrow(enabler), dimnames = list(enabler$id, years))
+  f <- sched$people_factor * (if (is.null(factor)) 1 else factor[enabler$id])
+  sme <- if (is.null(enabler$fte_sme)) rep(0, nrow(enabler)) else enabler$fte_sme
+  list(internal = b * enabler$fte_internal * f, sme = b * sme * f, partner = b * enabler$fte_partner * f)
 }
 
 #' Milestone ready date: latest go-live across its required enablers and their prerequisites
@@ -302,6 +318,7 @@ run_model <- function(data, graph, cfg, base = cfg, resources = NULL, targets = 
     late = milestone_issues(data, graph, ready, end, names(ins)[ins]),
     cost_parts = parts, full_cost = full_cost,
     cost = full_cost * sf$factor[rownames(full_cost)],
+    fte = fte_parts(data$enabler, years, sched, sf$factor),
     scope_factor = sf$factor, scope_n = sf$n, scope_N = sf$N, alloc = alloc,
     value = value, run_rate = attr(value, "run_rate"), impact = attr(value, "impact"),
     metric_level = vapply(data$metric$id, function(k) {

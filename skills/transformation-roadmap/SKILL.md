@@ -159,7 +159,8 @@ Proposed curves: `concave` 0·45·75·92·100 (gain comes early), `threshold` 0�
 | `name` | text | Concept name |
 | `enabler_group` | text | `people`, `digital`, `data` or `infra` |
 | `subgroup` | text | Short free text (e.g. a capability family) |
-| `fte_internal` | number | Average internal FTE over the concept's build window (first start → last go-live) |
+| `fte_internal` | number | Internal dedicated team: average FTE over the concept's build window (first start → last go-live) |
+| `fte_sme` | number | Optional. Part-time subject-matter experts and other staff, as FTE-equivalent (people × share of time: 6 at 20% = 1.2) |
 | `fte_partner` | number | Average partner / vendor / contractor FTE over the same window |
 
 ### 3.7 `enabler`
@@ -303,11 +304,11 @@ s_curve,S-curve,0,10,45,85,100,Gain concentrates on integration and automation
 
 ```csv
 # concept
-id,name,enabler_group,subgroup,fte_internal,fte_partner
-C-ADOPT,Adoption programme,people,Change management,1,0.5
-C-FLOW,Workflow solution,digital,Workflows,2,3
-C-DATA,Data integration,data,Integration,1.5,2
-C-CLOUD,Hosting,infra,Cloud,0.5,1
+id,name,enabler_group,subgroup,fte_internal,fte_sme,fte_partner
+C-ADOPT,Adoption programme,people,Change management,1,1.2,0.5
+C-FLOW,Workflow solution,digital,Workflows,2,0.8,3
+C-DATA,Data integration,data,Integration,1.5,0.5,2
+C-CLOUD,Hosting,infra,Cloud,0.5,0,1
 ```
 
 ```csv

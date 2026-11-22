@@ -147,8 +147,9 @@ INPUT_SPEC <- list(
     name = list("chr", TRUE, NA, "Concept name, e.g. Remote operations"),
     enabler_group = list("chr", TRUE, NA, "people, digital, data or infra"),
     subgroup = list("chr", FALSE, "", "Free text, e.g. Automation"),
-    fte_internal = list("num", FALSE, 0, "Average internal FTE on the concept over its build window"),
-    fte_partner = list("num", FALSE, 0, "Average partner / contractor FTE over its build window")),
+    fte_internal = list("num", FALSE, 0, "Internal dedicated team: average FTE over the concept's build window"),
+    fte_sme = list("num", FALSE, 0, "Part-time subject-matter experts and other staff, as FTE-equivalent (6 people at 20% = 1.2)"),
+    fte_partner = list("num", FALSE, 0, "Partners / contractors: average FTE over the build window")),
   enabler = list(
     id = list("chr", TRUE, NA, "Enabler ID, e.g. E-X-01"),
     concept_id = list("chr", TRUE, NA, "Concept the enabler belongs to"),
@@ -355,7 +356,9 @@ write_input_excel <- function(path, data = NULL, config = config_read(board_type
     if (is.null(data) || is.null(data[[t]])) {
       df <- as.data.frame(stats::setNames(replicate(length(cols), character(0), simplify = FALSE), cols))
     } else {
-      df <- data[[t]][, cols, drop = FALSE]
+      df <- data[[t]]
+      for (col in setdiff(cols, names(df))) df[[col]] <- rep(INPUT_SPEC[[t]][[col]][[3]], nrow(df))   # optional column left out
+      df <- df[, cols, drop = FALSE]
       for (col in cols[vapply(INPUT_SPEC[[t]], function(x) x[[1]] == "level", TRUE)]) {
         df[[col]] <- ifelse(is.na(df[[col]]), NA_character_, paste0("M", df[[col]]))   # written as M1..M5
       }

@@ -24,9 +24,10 @@ INVESTMENT → ENABLERS ────┴──► MILESTONES ──► METRICS �
 
 | View | What it answers |
 |---|---|
-| **Scenario** | What if: the **maturity target of each process** (M1–M5; levels below today are greyed out), adoption time, oil price, cost multiplier, acceleration. Headline and cumulative net value against the base case; by process, the change in milestones, value, cost and NPV; which enablers come in or drop out. The other views follow this scenario. |
+| **Scenario** | What if: the **maturity target of each process** (M1–M5; levels below today are greyed out), adoption time, oil price, cost multiplier, acceleration. Headline and cumulative net value against the base case; by process, the change in milestones, value, cost and NPV; which enablers come in or drop out. The other views follow this scenario. Under the chart, **export detail** downloads an audit workbook (see below). |
 | **Frontier** | Which combination of targets is worth pursuing. Every combination is evaluated (each process from its current level to M5) and plotted against investment, with **NPV or ROI** on the vertical axis. NPV frontier: the highest NPV for each investment. ROI frontier: the best ROI for investing at least that much (the cheapest portfolios always have the best ratio, so this shows how return dilutes as the programme grows). Pick a portfolio and apply it to the Scenario view. |
 | **Roadmap** | What, when, for what value, for the scenario's targets. Chronogram: per process, its maturity over time and its milestones (numbered by level, red when late), above the enablers by group › concept. Value chain: Foundations → Enablers → Milestones → Metrics → Processes; selecting an item draws its whole chain, with foundations shown lighter. |
+| **Resources** | What the scenario needs each year: cash (capex, internal team, SMEs, partners, opex) and people (internal dedicated team, part-time SMEs as FTE-equivalent, partners), with peaks, a year-by-year table and FTE-years by concept. |
 | **Method** | How it works: the logic diagram, the M1–M5 levels and how to assess a process, the impact curves, definitions, and the data workbook (download, template). |
 
 ## Calculation
@@ -37,7 +38,8 @@ INVESTMENT → ENABLERS ────┴──► MILESTONES ──► METRICS �
 - **Ready date**: a milestone is ready when its last enabler or foundation goes live; late when after the end of its due month. A process reaches level L when its milestones up to L are ready (a level with no milestone of its own is reached with the next one up).
 - **Metric value**: a metric climbs its impact curve through the levels of the milestones linked to it. Each step adds (curve(L) − curve(previous)) / (curve(M5) − curve(current)) of `value_musd`, ramped linearly over the adoption time from the date the step is reached, × realisation × driver (oil price or FTE cost vs base). `value_musd` is the annual value of going from the current level to M5.
 - **Impact curves** (sheet `curve`, % of impact at M1…M5; editable): *Diminishing returns* 0-45-75-92-100 (production), *Threshold* 0-5-15-55-100 (man-hours), *Linear*, *S-curve* 0-10-45-85-100 (cycle times, NPT).
-- **Cost / year**: capex over the build, concept people during the build (partner at a premium), opex from go-live; all × cost multiplier.
+- **Cost / year**: capex over the build, concept people during the build, opex from go-live; all × cost multiplier. People: internal team × FTE cost; part-time SMEs × FTE cost × `sme_cost_factor` (config, optional, default 1 = fully charged; 0 = absorbed by the business); partners × FTE cost × (1 + partner premium).
+- **Audit workbook** (Scenario → export detail): About (headline and formulas), Cashflow (year by year: value, capex, people by kind, opex, net, cumulative, discount factor, discounted net; totals), Assumptions (scenario vs base), Targets, Value_by_metric and Value_steps (value, driver factor, realisation, curve, steps and their shares), Value_by_year, Cost_by_enabler (inputs, scope factor, resources, schedule), Cost_by_year (enabler × year × cost type and FTE), Milestones, Resources. Every Cashflow total can be rebuilt from the detail sheets.
 - **Acceleration**: duration × r^(−scalability), start fixed; effort × r^(1−scalability). The solver back-calculates r per enabler for the milestones in scope.
 - **Frontier**: exact enumeration with the same formulas, on plan resources and the Scenario levers. On the ROI chart, portfolios under 5% of the largest investment sit on the top edge (labelled) so they don't flatten the rest. Costs are precomputed per enabler and switched on by the lowest milestone level that needs them; a metric's value is precomputed for every combination of the few processes whose milestones move it. 65,536 combinations take about half a second.
 
@@ -52,7 +54,8 @@ metric             (id, process_id, name, unit, baseline, target [at M5], value_
                     value_driver, curve_id)
 metric_milestone   (metric_id, milestone_id)                     -- several milestones can move one metric
 curve              (id, name, m1, m2, m3, m4, m5 [% of impact], description)   -- optional: defaults
-concept            (id, name, enabler_group [people|digital|data|infra], subgroup, fte_internal, fte_partner)
+concept            (id, name, enabler_group [people|digital|data|infra], subgroup,
+                    fte_internal [dedicated team], fte_sme [part-time experts, FTE-equivalent; optional], fte_partner)
 enabler            (id, concept_id, name, level, start_q, end_q, capex_musd, opex_musd_yr,
                     cost_basis [fixed|per_process], scalability)
 milestone_enabler  (milestone_id, enabler_id, weight)            -- milestone requires enabler

@@ -176,7 +176,7 @@ document.addEventListener('click',ev=>{
 
 let tip;document.addEventListener('mousemove',ev=>{
   if(!tip){tip=document.createElement('div');tip.id='tip';tip.hidden=true;document.body.appendChild(tip)}
-  const t=ev.target.closest&&ev.target.closest('[data-tip]');if(!t||!t.closest('.rm-root,.fr-root')){tip.hidden=true;return}
+  const t=ev.target.closest&&ev.target.closest('[data-tip]');if(!t||!t.closest('.rm-root,.fr-root,.rs-root')){tip.hidden=true;return}
   tip.innerHTML=t.dataset.tip;tip.hidden=false;const w=tip.offsetWidth,h=tip.offsetHeight;
   tip.style.left=Math.min(ev.clientX+14,innerWidth-w-8)+'px';tip.style.top=Math.min(ev.clientY+14,innerHeight-h-8)+'px'});
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(render,120)});

@@ -153,7 +153,8 @@ A concept groups the enablers that belong together, and carries their people.
 | `name` | text | e.g. `Remote operations` |
 | `enabler_group` | text | One of: `people`, `digital`, `data`, `infra` |
 | `subgroup` | text | Free text, short, e.g. `Remote operations`, `AI / ML`, `Governance` |
-| `fte_internal` | number | Average internal FTE working on the concept over its build window (first enabler start to last go-live): expertise or manpower **built or hired internally** |
+| `fte_internal` | number | **Internal dedicated team**: average FTE working full time on the concept over its build window (first enabler start to last go-live), built or hired internally |
+| `fte_sme` | number | Optional. **Part-time subject-matter experts and other staff** (process experts, operators, IT, HSE) who give part of their time, as FTE-equivalent: people × share of their time (6 people at 20% = 1.2). Charged at the loaded FTE cost × `sme_cost_factor`. |
 | `fte_partner` | number | Average FTE from **allies, vendors and contractors** over the same window |
 
 The app spreads a concept's FTE over its enablers in proportion to their build duration, so total effort (FTE × window) is kept.
@@ -184,6 +185,7 @@ Rules:
 - Every digital solution needs a `people` enabler next to it (training, change or new roles), unless an existing one already covers it.
 - Agentic and robotic enablers should state in the notes what the agent or robot does and what humans keep doing.
 - Don't put the same money in two places: `capex_musd` covers vendor implementation, and the concept's `fte_partner` covers people time from partners.
+- Don't count a person twice: someone fully on the project is `fte_internal`; someone who keeps their job and contributes part of their time is `fte_sme`.
 - Builds usually take 2 to 8 quarters. Anything longer should be split into phases linked by a dependency.
 - Use `per_process` only when the cost really grows with the number of processes (teams, sites, people) it covers. When only some processes need it (their targets are below the milestones that require it), the app scales its cost as (processes needing it / processes served) ^ scalability.
 

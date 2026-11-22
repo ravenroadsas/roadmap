@@ -51,6 +51,15 @@ mod_scenario_server <- function(id, data, graph, cfg_table, apply = NULL) {
                note = paste0("Change vs base", if (n) sprintf(" \u00b7 %d maturity target%s changed", n, if (n > 1) "s" else "")))
     })
     output$chart <- shiny::renderUI(cash_chart(portfolio(model()), portfolio(base_model())))
+    output$export <- shiny::downloadHandler(
+      filename = function() sprintf("roadmap_cashflow_%s.xlsx", format(Sys.time(), "%Y%m%d_%H%M")),
+      content = function(file) {
+        tg <- targets()
+        acc <- input$acc %||% "plan"
+        label <- paste0("Maturity targets: ", paste(sprintf("%s %s", names(tg), lvl(tg)), collapse = ", "),
+                        " | acceleration: ", c(plan = "plan", more = "more resources", date = "target date", due = "due dates")[[acc]])
+        cashflow_workbook(file, data, model(), base, label)
+      })
     output$maturity <- shiny::renderUI(maturity_ui(data, model(), base_model()))
     output$timing <- shiny::renderUI(timing_ui(data, model(), base_model(), solved()))
     scenario

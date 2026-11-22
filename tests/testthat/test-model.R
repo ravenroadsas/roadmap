@@ -104,3 +104,45 @@ test_that("attributed cost adds up to the portfolio over in-scope milestones", {
   f <- vapply(d$process$id, function(i) process_figures(d, m, i)$cost, 0)
   expect_equal(sum(f), portfolio(m)$total_cost)
 })
+
+test_that("people cost: internal team, part-time SMEs (charged by sme_cost_factor) and partners", {
+  t <- tiny_tables()
+  t$concept$fte_sme <- c(0, 2, 0)                                   # C2: 2 SME FTE-equivalent
+  m <- tiny_model(t = t, partner_premium = 0.5)
+  p <- m$cost_parts
+  expect_equal(sum(p$people_internal[c("E2", "E4"), ]), 1 * 100 / 1000 * 1.5)   # C2 window 1.5 years
+  expect_equal(sum(p$people_sme[c("E2", "E4"), ]), 2 * 100 / 1000 * 1.5)
+  expect_equal(sum(p$people_partner[c("E2", "E4"), ]), 1 * 100 * 1.5 / 1000 * 1.5)
+  expect_equal(p$people, p$people_internal + p$people_sme + p$people_partner)
+  expect_equal(sum(tiny_model(t = t, sme_cost_factor = 0)$cost_parts$people_sme), 0)
+  expect_equal(sum(m$fte$sme), 2 * 1.5)                              # FTE-years, whatever the charge
+  expect_equal(sum(tiny_model()$cost_parts$people_sme), 0)          # no column: no SMEs
+})
+
+test_that("resources per year add up to the portfolio; the audit workbook rebuilds the cash flow", {
+  skip_if_not_installed("writexl")
+  t <- tiny_tables(); t$concept$fte_sme <- c(0, 2, 0)
+  for (tg in list(NULL, c(P1 = 2))) {
+    m <- tiny_model(t = t, targets = tg, discount_rate = 0.1)
+    r <- resources_table(m)
+    p <- portfolio(m)
+    expect_equal(r$cash, p$cost)
+    f <- tempfile(fileext = ".xlsx")
+    cashflow_workbook(f, prepare_data(t), m, tiny_cfg(), "test")
+    cf <- readxl::read_excel(f, "Cashflow")
+    yr <- cf[cf$row == "year", ]
+    expect_equal(yr$total_cost, p$cost)
+    expect_equal(yr$value, p$value)
+    expect_equal(sum(yr$discounted_net), p$npv)
+    cy <- readxl::read_excel(f, "Cost_by_year")
+    expect_equal(sum(cy$total_cost), p$total_cost)
+    vy <- readxl::read_excel(f, "Value_by_year")
+    expect_equal(sum(vy$value), p$total_value)
+    vm <- readxl::read_excel(f, "Value_by_metric")
+    expect_equal(vm$full_value * vm$impact_share, vm$run_rate)
+    expect_setequal(readxl::excel_sheets(f), c("About", "Cashflow", "Assumptions", "Targets", "Value_by_metric", "Value_steps",
+                                               "Value_by_year", "Cost_by_enabler", "Cost_by_year", "Milestones", "Resources"))
+  }
+  x <- resources_by_concept(prepare_data(t), tiny_model(t = t))
+  expect_equal(x$sme[x$id == "C2"], 3)
+})
