@@ -12,6 +12,7 @@ mod_roadmap_ui <- function(id, data) {
         shiny::checkboxGroupInput(ns("scope"), NULL, selected = p$id, choiceValues = p$id,
           choiceNames = lapply(seq_len(nrow(p)), function(i)
             tags$span(class = "sc", tags$span(class = "sc-n", p$name[i]), tags$span(class = "sc-o", p$owner[i])))),
+        tags$p(class = "hint sc-note", "Unticked processes stay at their current maturity. Targets are set in the Scenario view."),
         shiny::textInput(ns("query"), NULL, placeholder = "Search")),
       tags$section(class = "canvas",
         tags$div(class = "pane-h",

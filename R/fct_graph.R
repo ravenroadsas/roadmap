@@ -1,6 +1,6 @@
-# Value chain: enablers make results possible; results generate value for
-# processes. process -> results -> required enablers
-# -> their prerequisites (foundations). Graph, attribution and date checks.
+# Value chain v3: investment builds enablers; enablers and the process's
+# target maturity make milestones possible; milestones move metrics up
+# their impact curve; metrics create value. Graph, attribution and checks.
 
 #' Convert a quarter label ("2027Q3") to decimal years
 #' @param q character vector of quarters.
@@ -16,7 +16,7 @@ month_to_time <- function(m) {
   as.integer(substr(m, 1, 4)) + (as.integer(substr(m, 6, 7)) - 0.5) / 12
 }
 
-#' End of a due month ("2028-06" -> 2028.5): a result is on time if ready by then
+#' End of a due month ("2028-06" -> 2028.5): a milestone is on time if ready by then
 due_to_time <- function(m) {
   as.integer(substr(m, 1, 4)) + as.integer(substr(m, 6, 7)) / 12
 }
@@ -29,35 +29,33 @@ time_to_q <- function(t) {
 
 #' Check the data for broken references and dependency cycles
 #'
-#' These are blocking errors. Date inconsistencies are not: they load and
-#' are reported by date_issues() / result_issues() so the app shows them in red.
+#' These are blocking errors. Date and level inconsistencies are not: they
+#' load and are reported by date_issues(), milestone_issues() and
+#' level_issues() so the app shows them in red.
 #' @return character vector of problems (empty when valid).
 graph_validate <- function(data) {
   e <- data$enabler$id
-  r <- data$result
+  ms <- data$milestone
+  mt <- data$metric
   dep <- data$enabler_dependency
-  re <- data$result_enabler
+  me <- data$milestone_enabler
+  mm <- data$metric_milestone
+  curves <- if (is.null(data$curve) || !nrow(data$curve)) DEFAULT_CURVES$id else data$curve$id
   probs <- c(
-    sprintf("result %s: unknown process %s", r$id, r$process_id)[!r$process_id %in% data$process$id],
+    sprintf("milestone %s: unknown process %s", ms$id, ms$process_id)[!ms$process_id %in% data$process$id],
+    sprintf("metric %s: unknown process %s", mt$id, mt$process_id)[!mt$process_id %in% data$process$id],
+    sprintf("metric %s: unknown curve %s", mt$id, mt$curve_id)[!mt$curve_id %in% curves],
     if (!is.null(data$concept)) sprintf("enabler %s: unknown concept %s", data$enabler$id, data$enabler$concept_id)[
       !data$enabler$concept_id %in% data$concept$id],
-    sprintf("result_enabler %s-%s: unknown enabler", re$result_id, re$enabler_id)[!re$enabler_id %in% e],
-    sprintf("result_enabler %s-%s: unknown result", re$result_id, re$enabler_id)[!re$result_id %in% r$id],
+    sprintf("milestone_enabler %s-%s: unknown enabler", me$milestone_id, me$enabler_id)[!me$enabler_id %in% e],
+    sprintf("milestone_enabler %s-%s: unknown milestone", me$milestone_id, me$enabler_id)[!me$milestone_id %in% ms$id],
+    sprintf("metric_milestone %s-%s: unknown metric", mm$metric_id, mm$milestone_id)[!mm$metric_id %in% mt$id],
+    sprintf("metric_milestone %s-%s: unknown milestone", mm$metric_id, mm$milestone_id)[!mm$milestone_id %in% ms$id],
     sprintf("dependency %s-%s: unknown enabler", dep$enabler_id, dep$requires_id)[
       !(dep$enabler_id %in% e & dep$requires_id %in% e)],
-    sprintf("result %s requires no enabler", r$id)[!r$id %in% re$result_id]
+    sprintf("milestone %s requires no enabler", ms$id)[!ms$id %in% me$milestone_id],
+    sprintf("metric %s is moved by no milestone", mt$id)[!mt$id %in% mm$metric_id]
   )
-  rp <- data$result_process
-  if (!is.null(rp) && nrow(rp)) {
-    lead_missing <- setdiff(unique(rp$result_id[rp$result_id %in% r$id]),
-                            rp$result_id[rp$process_id == r$process_id[match(rp$result_id, r$id)]])
-    probs <- c(probs,
-      sprintf("result_process %s-%s: unknown result", rp$result_id, rp$process_id)[!rp$result_id %in% r$id],
-      sprintf("result_process %s-%s: unknown process", rp$result_id, rp$process_id)[!rp$process_id %in% data$process$id],
-      sprintf("result_process %s-%s: share must be > 0", rp$result_id, rp$process_id)[!(rp$share > 0)],
-      sprintf("result_process %s: list its lead process %s too", lead_missing,
-              r$process_id[match(lead_missing, r$id)]))
-  }
   # cycle detection by repeatedly removing enablers with no prerequisites left
   remaining <- dep[dep$enabler_id %in% e & dep$requires_id %in% e, ]
   nodes <- e
@@ -75,29 +73,30 @@ graph_validate <- function(data) {
 
 #' Build the enabler graph and attribution matrices
 #'
-#' @param data list from db_read_all().
+#' @param data list from db_read_all() / prepare_data().
 #' @return list with prerequisite / dependent lists, normalised weights
-#'   (enabler x result), cost allocation shares, result chains (required
-#'   enablers + foundations), plan ready dates and plan date issues.
+#'   (enabler x milestone), cost flow, milestone chains (required enablers
+#'   + foundations), metric <-> milestone links, impact curves, plan ready
+#'   dates and plan date / level issues.
 build_graph <- function(data) {
   probs <- graph_validate(data)
   if (length(probs)) stop("Invalid roadmap data:\n", paste(probs, collapse = "\n"))
 
   ids <- data$enabler$id
-  rids <- data$result$id
+  mids <- data$milestone$id
   dep <- data$enabler_dependency
   prereq <- lapply(stats::setNames(ids, ids), function(i) dep$requires_id[dep$enabler_id == i])
   dependents <- lapply(stats::setNames(ids, ids), function(i) dep$enabler_id[dep$requires_id == i])
 
-  # explicit requirement weights, normalised per result
-  w <- matrix(0, length(ids), length(rids), dimnames = list(ids, rids))
-  re <- data$result_enabler
-  w[cbind(re$enabler_id, re$result_id)] <- re$weight
+  # explicit requirement weights, normalised per milestone
+  w <- matrix(0, length(ids), length(mids), dimnames = list(ids, mids))
+  me <- data$milestone_enabler
+  w[cbind(me$enabler_id, me$milestone_id)] <- me$weight
   wn <- sweep(w, 2, pmax(colSums(w), 1e-12), "/")
 
   # cost flow: own weight + an equal share of each dependent's flow,
-  # so foundations carry the results of everything built on them
-  flow <- matrix(NA_real_, length(ids), length(rids), dimnames = list(ids, rids))
+  # so foundations carry the milestones of everything built on them
+  flow <- matrix(NA_real_, length(ids), length(mids), dimnames = list(ids, mids))
   get_flow <- function(i) {
     if (!anyNA(flow[i, ])) return(flow[i, ])
     f <- wn[i, ]
@@ -106,31 +105,37 @@ build_graph <- function(data) {
     f
   }
   for (i in ids) get_flow(i)
-  rs <- rowSums(flow)
-  alloc <- flow / ifelse(rs > 0, rs, 1)
 
   end_t <- stats::setNames(q_to_time(data$enabler$end_q, TRUE), ids)
-  chains <- lapply(stats::setNames(rids, rids), function(r) {
-    direct <- re$enabler_id[re$result_id == r]
+  chains <- lapply(stats::setNames(mids, mids), function(m) {
+    direct <- me$enabler_id[me$milestone_id == m]
     found <- setdiff(ancestors(direct, prereq), direct)
     list(direct = direct, foundation = found)
   })
   ready <- vapply(chains, function(ch) max(end_t[c(ch$direct, ch$foundation)]), numeric(1))
+  mm <- data$metric_milestone
+  cv <- data$curve
+  curves <- matrix(as.matrix(cv[, paste0("m", 1:5)]) / 100, nrow = nrow(cv),
+                   dimnames = list(cv$id, paste0("M", 1:5)))
 
-  list(ids = ids, results = rids, prereq = prereq, dependents = dependents,
-       weight = wn, alloc = alloc, chains = chains, ready = ready,
-       share = process_shares(data),
-       issues = date_issues(data))
+  list(ids = ids, milestones = mids, prereq = prereq, dependents = dependents,
+       weight = wn, flow = flow, chains = chains, ready = ready,
+       metric_ms = lapply(stats::setNames(data$metric$id, data$metric$id), function(k) mm$milestone_id[mm$metric_id == k]),
+       ms_metrics = lapply(stats::setNames(mids, mids), function(m) mm$metric_id[mm$milestone_id == m]),
+       curves = curves,
+       issues = date_issues(data),
+       level_issues = level_issues(data))
 }
 
-#' Results that cannot be achieved by their due date
+#' Milestones that cannot be achieved by their due date
 #'
-#' A result is late when its required enablers (and their prerequisites)
-#' go live after the end of its due month.
+#' A milestone is late when its required enablers (and their prerequisites)
+#' go live after the end of its due month. Only milestones in scope count.
 #' @param ready named vector of ready times (scenario).
-#' @return data frame result_id, enabler_id (the latest one), type, message.
-result_issues <- function(data, graph, ready, end) {
-  r <- data$result
+#' @param ids milestones to check (in scope).
+#' @return data frame milestone_id, enabler_id (the latest one), type, message.
+milestone_issues <- function(data, graph, ready, end, ids = data$milestone$id) {
+  r <- data$milestone[data$milestone$id %in% ids, ]
   due <- stats::setNames(due_to_time(r$due), r$id)
   late <- r$id[ready[r$id] > due + 1e-6]
   lbl <- function(t) time_to_q(ceiling(t * 4 - 1e-9) / 4 - 0.25)
@@ -141,10 +146,30 @@ result_issues <- function(data, graph, ready, end) {
     en[which.max(end[en])]
   }, "")
   data.frame(
-    result_id = late, enabler_id = unname(last), type = rep("result_late", length(late)),
+    milestone_id = late, enabler_id = unname(last), type = rep("milestone_late", length(late)),
     message = sprintf("%s (due %s) can only be achieved in %s: %s goes live then",
                       r$name[match(late, r$id)], r$due[match(late, r$id)],
                       lbl(ready[late]), ename[last]),
+    stringsAsFactors = FALSE)
+}
+
+#' Enablers required by a milestone of a lower level (non-blocking)
+#'
+#' An enabler's level says which maturity it enables. A milestone that
+#' requires an enabler of a higher level is probably mis-levelled: the
+#' process would pay for M4 capabilities to reach M2.
+#' @return data frame enabler_id, milestone_id, message.
+level_issues <- function(data) {
+  me <- data$milestone_enabler
+  el <- data$enabler$level[match(me$enabler_id, data$enabler$id)]
+  ml <- data$milestone$level[match(me$milestone_id, data$milestone$id)]
+  bad <- !is.na(el) & !is.na(ml) & el > ml
+  x <- me[bad, ]
+  data.frame(
+    enabler_id = x$enabler_id, milestone_id = x$milestone_id,
+    message = sprintf("%s (M%s) is required by %s, a M%s milestone",
+                      data$enabler$name[match(x$enabler_id, data$enabler$id)], el[bad],
+                      data$milestone$name[match(x$milestone_id, data$milestone$id)], ml[bad]),
     stringsAsFactors = FALSE)
 }
 
@@ -199,30 +224,6 @@ date_issues <- function(data, end = NULL) {
   out
 }
 
-#' Share of each result held by each process (result x process, rows sum to 1)
-#'
-#' A result belongs to its lead process (result.process_id) unless the
-#' optional result_process sheet lists it: then it is split across the
-#' listed processes by share.
-process_shares <- function(data) {
-  r <- data$result
-  pids <- data$process$id
-  m <- matrix(0, nrow(r), length(pids), dimnames = list(r$id, pids))
-  m[cbind(r$id, r$process_id)] <- 1
-  rp <- data$result_process
-  if (!is.null(rp) && nrow(rp)) {
-    rp <- rp[rp$result_id %in% r$id & rp$process_id %in% pids, ]
-    m[unique(rp$result_id), ] <- 0
-    m[cbind(rp$result_id, rp$process_id)] <- rp$share
-  }
-  m / pmax(rowSums(m), 1e-12)
-}
-
-#' Weight of each result for a set of processes (sum of their shares)
-process_weights <- function(graph, result_ids, process_ids) {
-  rowSums(graph$share[result_ids, intersect(process_ids, colnames(graph$share)), drop = FALSE])
-}
-
-#' Results a process holds (any share), and the processes of a result
-results_of_process <- function(graph, pid) rownames(graph$share)[graph$share[, pid] > 0]
-processes_of_result <- function(graph, rid) colnames(graph$share)[graph$share[rid, ] > 0]
+#' Milestones and metrics of a process
+milestones_of_process <- function(data, pid) data$milestone$id[data$milestone$process_id == pid]
+metrics_of_process <- function(data, pid) data$metric$id[data$metric$process_id == pid]

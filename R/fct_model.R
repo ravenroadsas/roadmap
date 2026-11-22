@@ -1,9 +1,11 @@
-# Cost and value model v2. Pure functions: data + graph + config values in,
-# yearly profiles out. All money in $M.
+# Cost and value model v3. Pure functions: data + graph + config values +
+# maturity targets in, yearly profiles out. All money in $M.
 #
-# Logic: enablers make results possible; results generate value for the
-# processes that hold them. The process scope ("what if we transform only
-# these processes") sets which results count and which enablers are needed.
+# Logic: each process has a target digital maturity (M1 manual .. M5
+# adaptive). Milestones up to that level are in scope; the enablers they
+# require (and their foundations) are the investment. As milestones become
+# ready, the metrics they move climb their impact curve, and that impact is
+# the value.
 
 overlap <- function(a, b, y) pmax(0, pmin(b, y + 1) - pmax(a, y))
 
@@ -14,7 +16,7 @@ overlap <- function(a, b, y) pmax(0, pmin(b, y + 1) - pmax(a, y))
 #' to last go-live of its enablers) and spread over its enablers in
 #' proportion to their build duration, so total effort is kept:
 #' enabler FTE = concept FTE x window / sum of enabler durations.
-#' Also marks results that carry a measure (baseline -> target).
+#' Also marks metrics that carry a measure and types the maturity levels.
 #' @param tables named list of tables (from the workbook or the database).
 prepare_data <- function(tables) {
   e <- tables$enabler
@@ -34,12 +36,13 @@ prepare_data <- function(tables) {
   e <- e[order(match(e$enabler_group, grp_order), e$concept, e$start_q, e$id), ]
   rownames(e) <- NULL
   tables$enabler <- e
-  r <- tables$result
-  r$measured <- !is.na(r$baseline) & !is.na(r$target)
-  tables$result <- r
-  if (is.null(tables$result_process)) {
-    tables$result_process <- data.frame(result_id = character(0), process_id = character(0), share = numeric(0))
-  }
+  if (is.null(tables$curve) || !nrow(tables$curve)) tables$curve <- DEFAULT_CURVES
+  mt <- tables$metric
+  mt$measured <- !is.na(mt$baseline) & !is.na(mt$target)
+  tables$metric <- mt
+  for (k in c("current_level", "target_level")) tables$process[[k]] <- as.integer(tables$process[[k]])
+  tables$milestone$level <- as.integer(tables$milestone$level)
+  tables$enabler$level <- as.integer(tables$enabler$level)
   tables
 }
 
@@ -123,110 +126,204 @@ fte_profile <- function(enabler, years, sched) {
              partner = colSums(b * enabler$fte_partner * sched$people_factor))
 }
 
-#' Result ready date: latest go-live across its required enablers and their prerequisites
-result_ready <- function(graph, sched) {
+#' Milestone ready date: latest go-live across its required enablers and their prerequisites
+milestone_ready <- function(graph, sched) {
   end_t <- stats::setNames(sched$end, sched$id)
   vapply(graph$chains, function(ch) max(end_t[c(ch$direct, ch$foundation)]), numeric(1))
 }
 
-#' Factor applied to a result's value from its driver parameter
+#' Factor applied to a metric's value from its driver parameter
 driver_factor <- function(driver, cfg, base) {
   vapply(driver, function(d) {
     if (is.na(d) || d == "none" || is.null(cfg[[d]])) 1 else cfg[[d]] / base[[d]]
   }, numeric(1), USE.NAMES = FALSE)
 }
 
-#' Yearly value of each result
+#' Effective maturity targets
 #'
-#' Full value = value_musd x realisation x driver factor. Once the result is
-#' ready, value ramps linearly to full over the adoption time (the
-#' `adoption_years` lever). Evaluated quarterly, averaged per year.
-#' @return matrix result x year, with attribute run_rate.
-value_profile <- function(result, ready, cfg, base, years) {
-  vm <- ifelse(is.na(result$value_musd), 0, result$value_musd)
-  full <- vm * cfg$realization * driver_factor(result$value_driver, cfg, base)
-  r <- ready[result$id]
+#' Starts from the base targets in the process sheet, applies the scenario
+#' targets, and keeps each between the current level and M5. Processes left
+#' out of the scope stay at their current level (not transformed).
+#' @param targets optional named vector of levels (1..5) by process id.
+#' @param scope optional process ids in scope.
+effective_targets <- function(data, targets = NULL, scope = NULL) {
+  p <- data$process
+  t <- stats::setNames(p$target_level, p$id)
+  if (!is.null(targets)) {
+    k <- intersect(names(targets), p$id)
+    t[k] <- as.integer(targets[k])
+  }
+  cur <- stats::setNames(p$current_level, p$id)
+  t <- pmin(pmax(t, cur), 5L)
+  if (!is.null(scope)) t[!names(t) %in% scope] <- cur[!names(t) %in% scope]
+  t
+}
+
+#' Milestones in scope: level at or below their process's target
+milestones_in_scope <- function(data, targets) {
+  ms <- data$milestone
+  stats::setNames(ms$level <= targets[ms$process_id], ms$id)
+}
+
+#' When each process reaches each level of its path
+#'
+#' A process reaches level L when all its milestones above its current
+#' level and up to L are ready. A level with no milestone of its own is
+#' reached with the next level up that has one (or the one below, at the top).
+#' @return data frame process_id, level, t (NA = reached from the start).
+process_path <- function(data, ready, targets) {
+  p <- data$process
+  ms <- data$milestone
+  do.call(rbind, lapply(seq_len(nrow(p)), function(i) {
+    cur <- p$current_level[i]
+    tgt <- targets[[p$id[i]]]
+    if (tgt <= cur) return(NULL)
+    lv <- (cur + 1):tgt
+    own <- vapply(lv, function(l) any(ms$process_id == p$id[i] & ms$level == l), TRUE)
+    raw <- vapply(lv, function(l) {
+      k <- ms$id[ms$process_id == p$id[i] & ms$level > cur & ms$level <= l]
+      if (length(k)) max(ready[k]) else NA_real_
+    }, numeric(1))
+    # a level with no milestone of its own is reached with the next level that has one
+    t <- vapply(seq_along(lv), function(j) {
+      nxt <- which(own & seq_along(lv) >= j)
+      if (length(nxt)) raw[nxt[1]] else raw[j]
+    }, numeric(1))
+    data.frame(process_id = p$id[i], level = lv, t = t, stringsAsFactors = FALSE)
+  }))
+}
+
+#' Steps of each metric up its impact curve
+#'
+#' A metric climbs through the levels of the milestones linked to it (in
+#' scope, i.e. within their own process's target). It reaches level L when
+#' every linked milestone up to L is ready. Each step adds
+#' (curve(L) - curve(previous)) / (curve(M5) - curve(current)) of the
+#' metric's value, so a process at M5 gets 100% and staying at the current
+#' level gets 0%.
+#' @return list by metric of data frames (level, t, delta).
+metric_steps <- function(data, graph, ready, in_scope) {
+  mt <- data$metric
+  ms <- data$milestone
+  cur_of <- stats::setNames(data$process$current_level, data$process$id)
+  out <- lapply(seq_len(nrow(mt)), function(i) {
+    cur <- cur_of[[mt$process_id[i]]]
+    cv <- graph$curves[mt$curve_id[i], ]
+    span <- cv[5] - cv[cur]
+    k <- graph$metric_ms[[mt$id[i]]]
+    k <- k[in_scope[k]]
+    lv <- ms$level[match(k, ms$id)]
+    steps <- sort(unique(lv[lv > cur]))
+    if (!length(steps) || span <= 1e-9) return(data.frame(level = integer(0), t = numeric(0), delta = numeric(0)))
+    t <- vapply(steps, function(l) max(ready[k[lv <= l]]), numeric(1))
+    prev <- c(cur, utils::head(steps, -1))
+    data.frame(level = steps, t = t, delta = unname((cv[steps] - cv[prev]) / span))
+  })
+  stats::setNames(out, mt$id)
+}
+
+#' Yearly value of each metric
+#'
+#' Full value = value_musd x realisation x driver factor (from current
+#' level to M5). Each step up the curve ramps linearly to its share of the
+#' full value over the adoption time, from the date the step is reached.
+#' Evaluated quarterly, averaged per year.
+#' @return matrix metric x year, with attributes run_rate and impact.
+value_profile <- function(metric, steps, cfg, base, years) {
+  vm <- ifelse(is.na(metric$value_musd), 0, metric$value_musd)
+  full <- vm * cfg$realization * driver_factor(metric$value_driver, cfg, base)
   a <- max(cfg$adoption_years, 1e-6)
-  out <- vapply(years, function(y) {
-    q <- y + (0:3 + 0.5) / 4
-    ramp <- vapply(r, function(ri) mean(pmin(1, pmax(0, (q - ri) / a))), numeric(1))
-    full * ramp
-  }, numeric(nrow(result)))
-  out <- matrix(out, nrow = nrow(result), dimnames = list(result$id, years))
-  attr(out, "run_rate") <- stats::setNames(full, result$id)
+  q <- as.vector(outer((0:3 + 0.5) / 4, years, "+"))
+  out <- t(vapply(seq_len(nrow(metric)), function(i) {
+    st <- steps[[metric$id[i]]]
+    if (!nrow(st)) return(numeric(length(years)))
+    ramp <- Reduce(`+`, lapply(seq_len(nrow(st)), function(j) st$delta[j] * pmin(1, pmax(0, (q - st$t[j]) / a))))
+    full[i] * colMeans(matrix(ramp, nrow = 4))
+  }, numeric(length(years))))
+  out <- matrix(out, nrow = nrow(metric), dimnames = list(metric$id, years))
+  impact <- vapply(metric$id, function(k) sum(steps[[k]]$delta), 0)
+  attr(out, "run_rate") <- stats::setNames(full * impact, metric$id)
+  attr(out, "impact") <- impact
   out
 }
 
-#' Scope: which results count, which enablers are needed, at what cost
+#' Which enablers the in-scope milestones need, at what cost factor
 #'
-#' A result counts with the share its in-scope processes hold. An enabler
-#' is needed if an in-scope result requires it (directly or as a
-#' prerequisite). Its cost then counts in full when cost_basis is "fixed";
-#' when "per_process" it scales with the processes it serves that are in
-#' scope: (n / N)^scalability (0 = fixed, 1 = proportional).
-#' @param scope process ids in scope (all when NULL).
-#' @return list(w = result weights, factor = enabler cost factors, n, N).
-scope_factors <- function(data, graph, scope = NULL) {
-  pids <- colnames(graph$share)
-  if (is.null(scope)) scope <- pids
-  w <- rowSums(graph$share[, intersect(scope, pids), drop = FALSE])
+#' An enabler is needed if an in-scope milestone requires it (directly or
+#' as a prerequisite). Its cost counts in full when cost_basis is "fixed";
+#' when "per_process" it scales with the processes it serves that need it:
+#' (n / N)^scalability, where N counts every process with a milestone that
+#' needs it (at any level).
+#' @return list(factor, n, N) named by enabler.
+scope_factors <- function(data, graph, in_scope) {
   ids <- graph$ids
-  # processes each enabler serves: those holding any result whose chain contains it
+  ms <- data$milestone
+  chain_of <- lapply(graph$chains, function(ch) c(ch$direct, ch$foundation))
   serves <- lapply(stats::setNames(ids, ids), function(e) {
-    rs <- names(Filter(function(ch) e %in% c(ch$direct, ch$foundation), graph$chains))
-    pids[colSums(graph$share[rs, , drop = FALSE]) > 0]
+    k <- names(Filter(function(ch) e %in% ch, chain_of))
+    list(all = unique(ms$process_id[ms$id %in% k]), on = unique(ms$process_id[ms$id %in% k & in_scope[ms$id]]))
   })
-  needed_rs <- names(w)[w > 0]
-  needed <- unique(unlist(lapply(graph$chains[needed_rs], function(ch) c(ch$direct, ch$foundation))))
-  N <- vapply(serves, length, 1L)
-  n <- vapply(serves, function(p) sum(p %in% scope), 1L)
+  N <- vapply(serves, function(x) length(x$all), 1L)
+  n <- vapply(serves, function(x) length(x$on), 1L)
   e <- data$enabler[match(ids, data$enabler$id), ]
   sc <- pmin(pmax(ifelse(is.na(e$scalability), 0, e$scalability), 0), 2)
   per <- e$cost_basis == "per_process"
-  f <- ifelse(!ids %in% needed, 0, ifelse(per & N > 0, (n / pmax(N, 1))^sc, 1))
-  list(w = w, factor = stats::setNames(f, ids), n = stats::setNames(n, ids), N = stats::setNames(N, ids))
+  f <- ifelse(n == 0, 0, ifelse(per & N > 0, (n / pmax(N, 1))^sc, 1))
+  list(factor = stats::setNames(f, ids), n = stats::setNames(n, ids), N = stats::setNames(N, ids))
 }
 
-#' Run the full model for one scenario and one process scope
+#' Run the full model for one scenario
 #' @param cfg named list of parameter values (scenario).
 #' @param base named list of base-case values (for driver factors).
 #' @param resources optional per-enabler resource multipliers (solve_target()).
-#' @param scope process ids in scope (all when NULL).
-run_model <- function(data, graph, cfg, base = cfg, resources = NULL, scope = NULL) {
+#' @param targets optional maturity targets by process (base targets otherwise).
+#' @param scope optional process ids in scope; the others stay at their current level.
+run_model <- function(data, graph, cfg, base = cfg, resources = NULL, targets = NULL, scope = NULL) {
   start <- floor(min(q_to_time(data$enabler$start_q)))
   years <- seq(start, cfg$horizon_end)
+  tg <- effective_targets(data, targets, scope)
   sched <- schedule(data$enabler, cfg, resources)
-  ready <- result_ready(graph, sched)
+  ready <- milestone_ready(graph, sched)
+  ins <- milestones_in_scope(data, tg)
   parts <- cost_parts(data$enabler, cfg, years, sched)
   full_cost <- parts$capex + parts$people + parts$opex
-  sf <- scope_factors(data, graph, scope)
-  value <- value_profile(data$result, ready, cfg, base, years)
+  sf <- scope_factors(data, graph, ins)
+  steps <- metric_steps(data, graph, ready, ins)
+  value <- value_profile(data$metric, steps, cfg, base, years)
+  end <- stats::setNames(sched$end, sched$id)
+  # cost shared among the in-scope milestones only
+  fl <- graph$flow[, ins, drop = FALSE]
+  alloc <- fl / ifelse(rowSums(fl) > 0, rowSums(fl), 1)
   list(
     cfg = cfg, years = years, start = start, resources = resources, scope = scope,
-    schedule = sched, ready = ready,
-    issues = date_issues(data, stats::setNames(sched$end, sched$id)),
-    late = result_issues(data, graph, ready, stats::setNames(sched$end, sched$id)),
+    targets = tg, in_scope = ins, schedule = sched, ready = ready,
+    path = process_path(data, ready, tg), steps = steps,
+    issues = date_issues(data, end),
+    late = milestone_issues(data, graph, ready, end, names(ins)[ins]),
     cost_parts = parts, full_cost = full_cost,
     cost = full_cost * sf$factor[rownames(full_cost)],
-    scope_w = sf$w, scope_factor = sf$factor, scope_n = sf$n, scope_N = sf$N,
-    value = value, run_rate = attr(value, "run_rate"),
+    scope_factor = sf$factor, scope_n = sf$n, scope_N = sf$N, alloc = alloc,
+    value = value, run_rate = attr(value, "run_rate"), impact = attr(value, "impact"),
+    metric_level = vapply(data$metric$id, function(k) {
+      st <- steps[[k]]
+      if (nrow(st)) max(st$level) else data$process$current_level[match(data$metric$process_id[data$metric$id == k], data$process$id)]
+    }, 0L),
     discount = 1 / (1 + cfg$discount_rate)^(years - start),
     graph = graph
   )
 }
 
-#' Headline figures for the model's scope
+#' Headline figures
 #'
-#' Value: in-scope results at their in-scope share. Cost: the enablers those
-#' results need, per-process enablers scaled to the scope.
+#' Value: every metric at the impact its milestones reach. Cost: the
+#' enablers the in-scope milestones need.
 portfolio <- function(model) {
-  w <- model$scope_w
-  value <- colSums(model$value[names(w), , drop = FALSE] * w)
+  value <- colSums(model$value)
   cost <- colSums(model$cost)
   net <- value - cost
   cum <- cumsum(net)
   pay <- which(cum >= 0)
-  ids <- names(w)[w > 0]
+  ids <- names(model$in_scope)[model$in_scope]
   list(
     years = model$years, value = unname(value), cost = unname(cost),
     net = unname(net), cum_net = unname(cum),
@@ -234,26 +331,33 @@ portfolio <- function(model) {
     total_value = sum(value), total_cost = sum(cost),
     roi = if (sum(cost) > 0) (sum(value) - sum(cost)) / sum(cost) else NA_real_,
     payback = if (length(pay)) model$years[pay[1]] else NA_integer_,
-    run_rate = sum(model$run_rate[names(w)] * w),
-    results = ids, enablers = names(which(model$scope_factor > 0)),
+    run_rate = sum(model$run_rate),
+    milestones = ids, enablers = names(which(model$scope_factor > 0)),
     last_ready = if (length(ids)) max(model$ready[ids]) else NA_real_
   )
 }
 
-#' Cost attributed to results (share of the full roadmap cost)
+#' Cost attributed to milestones (in scope)
 #'
-#' Each enabler's cost is split across the results that require it by
-#' weight; foundations pass theirs on through their dependents.
-#' @param w optional weights (e.g. a process's share of each result).
-attributed <- function(model, result_ids, w = rep(1, length(result_ids))) {
-  tot <- rowSums(model$full_cost)
-  share <- as.vector(model$graph$alloc[, result_ids, drop = FALSE] %*% w)
-  value <- sum(rowSums(model$value[result_ids, , drop = FALSE]) * w)
-  cost <- sum(tot * share)
-  net <- colSums(model$value[result_ids, , drop = FALSE] * w) - colSums(model$full_cost * share)
-  list(value = value, cost = cost, npv = sum(net * model$discount),
-       run_rate = sum(model$run_rate[result_ids] * w),
-       by_enabler = stats::setNames(tot * share, names(tot)))
+#' Each needed enabler's cost is split across the in-scope milestones that
+#' require it by weight; foundations pass theirs on through their dependents.
+attributed_cost <- function(model, milestone_ids) {
+  ids <- intersect(milestone_ids, colnames(model$alloc))
+  tot <- rowSums(model$cost)
+  share <- rowSums(model$alloc[, ids, drop = FALSE])
+  by <- tot * share
+  list(cost = sum(by), by_enabler = by,
+       yearly = colSums(model$cost * share))
+}
+
+#' Value, cost and NPV of a process: its metrics and its in-scope milestones
+process_figures <- function(data, model, pid) {
+  k <- metrics_of_process(data, pid)
+  m <- milestones_of_process(data, pid)
+  a <- attributed_cost(model, m)
+  v <- colSums(model$value[k, , drop = FALSE])
+  list(value = sum(v), run_rate = sum(model$run_rate[k]), cost = a$cost,
+       npv = sum((v - a$yearly) * model$discount))
 }
 
 #' Back-calculate the resources needed to meet dates
@@ -264,10 +368,11 @@ attributed <- function(model, result_ids, w = rep(1, length(result_ids))) {
 #' duration it may take.
 #'
 #' Deadlines per scope:
-#' * "due": every result by its own due date (end of its due month).
-#' * "date": every result by a common `target` date.
-#' For a result, the deadline applies to its required enablers and all
-#' their prerequisites (the result is ready only when all are live).
+#' * "due": every milestone in scope by its own due date (end of its due month).
+#' * "date": every milestone in scope by a common `target` date.
+#' For a milestone, the deadline applies to its required enablers and all
+#' their prerequisites (the milestone is ready only when all are live).
+#' Milestones in scope follow the maturity `targets` (base targets when NULL).
 #' pull_prereqs: an accelerated enabler's prerequisites are accelerated
 #' too, so none goes live after it (no new late dependencies).
 #'
@@ -277,7 +382,7 @@ attributed <- function(model, result_ids, w = rep(1, length(result_ids))) {
 #' @return list(resources, blockers, feasible, target, scope).
 solve_target <- function(data, graph, cfg, target = NA_real_,
                          scope = c("due", "date"),
-                         pull_prereqs = TRUE, r_max = 5) {
+                         pull_prereqs = TRUE, r_max = 5, targets = NULL) {
   scope <- match.arg(scope)
   e <- data$enabler
   plan <- schedule(e, utils::modifyList(cfg, list(resource_multiplier = 1)))
@@ -288,7 +393,8 @@ solve_target <- function(data, graph, cfg, target = NA_real_,
     k_req[[ids[i]]] <<- min(k_req[[ids[i]]], k)
   }
   {
-    r <- data$result
+    ins <- milestones_in_scope(data, effective_targets(data, targets))
+    r <- data$milestone[ins[data$milestone$id], ]
     deadline <- if (scope == "due") due_to_time(r$due) else rep(target, nrow(r))
     for (j in seq_len(nrow(r))) {
       ch <- graph$chains[[r$id[j]]]

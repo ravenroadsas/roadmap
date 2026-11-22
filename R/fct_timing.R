@@ -20,3 +20,22 @@ scenario_summary <- function(data, model, base_model) {
       stringsAsFactors = FALSE)
   )
 }
+
+#' Maturity targets: figures by process, scenario vs base, and enablers in / out
+maturity_summary <- function(data, model, base_model) {
+  p <- data$process
+  fig <- function(m) lapply(p$id, function(i) process_figures(data, m, i))
+  a <- fig(model); b <- fig(base_model)
+  g <- function(x, k) vapply(x, `[[`, 0, k)
+  msn <- function(m) vapply(p$id, function(i) sum(m$in_scope[milestones_of_process(data, i)]), 0L)
+  need <- function(m) names(m$scope_factor)[m$scope_factor > 0]
+  list(
+    by_process = data.frame(id = p$id, name = p$name, cur = p$current_level,
+                            tgt = unname(model$targets[p$id]), base_tgt = unname(base_model$targets[p$id]),
+                            ms = msn(model), ms_base = msn(base_model),
+                            run = g(a, "run_rate"), run_base = g(b, "run_rate"),
+                            cost = g(a, "cost"), cost_base = g(b, "cost"),
+                            npv = g(a, "npv"), npv_base = g(b, "npv"), stringsAsFactors = FALSE),
+    added = setdiff(need(model), need(base_model)),
+    dropped = setdiff(need(base_model), need(model)))
+}

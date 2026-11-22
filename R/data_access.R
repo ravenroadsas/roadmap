@@ -1,17 +1,17 @@
 # All data interaction lives in this file.
 # Input: an Excel workbook with one sheet per table plus a 'config' sheet
-# (process, result, result_process, concept, enabler, result_enabler,
-# enabler_dependency, config)
+# (process, milestone, metric, metric_milestone, curve, concept, enabler,
+# milestone_enabler, enabler_dependency, config)
 # (ROADMAP_INPUT_XLSX, default inst/extdata/roadmap_input.xlsx). It is the source of truth: at
 # startup it is validated and loaded into the database, replacing its content.
 # Development: DuckDB (file or in-memory).
 # Enterprise: swap db_connect() for an odbc / RPostgres connection; the rest
 # uses plain DBI + portable SQL, so callers do not change.
 
-ROADMAP_TABLES <- c("process", "result", "result_process", "concept", "enabler",
-                    "result_enabler", "enabler_dependency")
-# sheets that may be left out of the workbook (read as empty)
-OPTIONAL_SHEETS <- "result_process"
+ROADMAP_TABLES <- c("process", "milestone", "metric", "metric_milestone", "curve", "concept",
+                    "enabler", "milestone_enabler", "enabler_dependency")
+# sheets that may be left out of the workbook (curve: the default curves are used)
+OPTIONAL_SHEETS <- "curve"
 
 #' Open a database connection
 #'
@@ -57,7 +57,7 @@ db_init <- function(con) {
   invisible(con)
 }
 
-#' Hook for columns added after a database file was created (none in v2)
+#' Hook for columns added after a database file was created (none in v3)
 db_migrate <- function(con) invisible(con)
 
 #' Read every roadmap table into a named list of data frames
@@ -94,19 +94,39 @@ db_import <- function(con, tables) {
 #' Columns of each input sheet: type, required, default, description
 INPUT_SPEC <- list(
   process = list(
-    id = list("chr", TRUE, NA, "Process ID, e.g. P2"),
+    id = list("chr", TRUE, NA, "Process ID, e.g. P02"),
     name = list("chr", TRUE, NA, "Process name"),
-    owner = list("chr", TRUE, NA, "Accountable role (used as a filter)")),
-  result = list(
-    id = list("chr", TRUE, NA, "Result ID, e.g. R-P04-01"),
-    process_id = list("chr", TRUE, NA, "Lead process (accountable owner)"),
-    name = list("chr", TRUE, NA, "The tangible result, e.g. 250 wells per engineer"),
+    owner = list("chr", TRUE, NA, "Accountable role (used as a filter)"),
+    current_level = list("level", TRUE, NA, "Digital maturity today, M1 (manual) to M5 (adaptive)"),
+    target_level = list("level", TRUE, NA, "Target digital maturity in the base case (changed in the Scenario view)")),
+  milestone = list(
+    id = list("chr", TRUE, NA, "Milestone ID, e.g. R-P04-01"),
+    process_id = list("chr", TRUE, NA, "Process that achieves it (accountable owner)"),
+    name = list("chr", TRUE, NA, "The step change, e.g. Remote operations centre live"),
     due = list("month", TRUE, NA, "Due date, YYYY-MM"),
-    value_musd = list("num", FALSE, 0, "Annual value once achieved, $M (0 if none)"),
+    level = list("level", TRUE, NA, "Maturity level it belongs to: in scope when the process target is at or above it")),
+  metric = list(
+    id = list("chr", TRUE, NA, "Metric ID, e.g. K-P04-01"),
+    process_id = list("chr", TRUE, NA, "Process whose value it is"),
+    name = list("chr", TRUE, NA, "What is measured, e.g. Deferred production"),
+    unit = list("chr", FALSE, "", "Unit of baseline and target"),
+    baseline = list("num", FALSE, NA, "Value today (at the current level)"),
+    target = list("num", FALSE, NA, "Value at full impact (M5)"),
+    value_musd = list("num", FALSE, 0, "Annual value, $M, of going from the current level to M5 (100% impact)"),
     value_driver = list("chr", FALSE, "none", "oil_price, fte_cost or none"),
-    unit = list("chr", FALSE, "", "Optional measure: unit of baseline and target"),
-    baseline = list("num", FALSE, NA, "Optional measure: current value"),
-    target = list("num", FALSE, NA, "Optional measure: value when achieved")),
+    curve_id = list("chr", TRUE, NA, "Impact curve: % of the impact reached at each maturity level")),
+  metric_milestone = list(
+    metric_id = list("chr", TRUE, NA, "Metric ID"),
+    milestone_id = list("chr", TRUE, NA, "A milestone that moves the metric up its curve")),
+  curve = list(
+    id = list("chr", TRUE, NA, "Curve ID, e.g. concave"),
+    name = list("chr", TRUE, NA, "Curve name"),
+    m1 = list("num", TRUE, NA, "% of the impact reached at M1"),
+    m2 = list("num", TRUE, NA, "% of the impact reached at M2"),
+    m3 = list("num", TRUE, NA, "% of the impact reached at M3"),
+    m4 = list("num", TRUE, NA, "% of the impact reached at M4"),
+    m5 = list("num", TRUE, NA, "% of the impact reached at M5 (normally 100)"),
+    description = list("chr", FALSE, "", "When to use it")),
   concept = list(
     id = list("chr", TRUE, NA, "Concept ID, e.g. C-ROC"),
     name = list("chr", TRUE, NA, "Concept name, e.g. Remote operations"),
@@ -118,27 +138,25 @@ INPUT_SPEC <- list(
     id = list("chr", TRUE, NA, "Enabler ID, e.g. E-X-01"),
     concept_id = list("chr", TRUE, NA, "Concept the enabler belongs to"),
     name = list("chr", TRUE, NA, "What is built"),
+    level = list("level", TRUE, NA, "Maturity level it enables (checked against the milestones that require it)"),
     start_q = list("quarter", TRUE, NA, "Start quarter, YYYYQn"),
     end_q = list("quarter", TRUE, NA, "Go-live quarter, YYYYQn"),
     capex_musd = list("num", FALSE, 0, "One-off investment, $M"),
     opex_musd_yr = list("num", FALSE, 0, "Running cost per year after go-live, $M"),
-    cost_basis = list("chr", FALSE, "fixed", "fixed, or per_process (scales with the processes in scope)"),
+    cost_basis = list("chr", FALSE, "fixed", "fixed, or per_process (scales with the processes that need it)"),
     scalability = list("num", FALSE, 0, "0 rigid, 1 linear, >1 better than linear (time and per-process cost)")),
-  result_process = list(
-    result_id = list("chr", TRUE, NA, "Result shared by several processes (optional sheet)"),
-    process_id = list("chr", TRUE, NA, "A process that shares it; list the lead process too"),
-    share = list("num", FALSE, 1, "Relative share of the result's value and cost (normalised per result)")),
-  result_enabler = list(
-    result_id = list("chr", TRUE, NA, "Result ID"),
-    enabler_id = list("chr", TRUE, NA, "Enabler the result requires"),
-    weight = list("num", FALSE, 1, "Relative contribution of the enabler to the result")),
+  milestone_enabler = list(
+    milestone_id = list("chr", TRUE, NA, "Milestone ID"),
+    enabler_id = list("chr", TRUE, NA, "Enabler the milestone requires"),
+    weight = list("num", FALSE, 1, "Relative contribution of the enabler to the milestone")),
   enabler_dependency = list(
     enabler_id = list("chr", TRUE, NA, "Enabler that needs something"),
     requires_id = list("chr", TRUE, NA, "Enabler it needs"))
 )
-INPUT_KEYS <- list(process = "id", result = "id", result_process = c("result_id", "process_id"),
+INPUT_KEYS <- list(process = "id", milestone = "id", metric = "id",
+                   metric_milestone = c("metric_id", "milestone_id"), curve = "id",
                    concept = "id", enabler = "id",
-                   result_enabler = c("result_id", "enabler_id"),
+                   milestone_enabler = c("milestone_id", "enabler_id"),
                    enabler_dependency = c("enabler_id", "requires_id"))
 
 input_path <- function() {
@@ -161,6 +179,10 @@ coerce_col <- function(x, type) {
     return(list(v, which(!blank & !grepl("^\\d{4}-(0[1-9]|1[0-2])$", v))))
   }
   v <- trimws(as.character(x))
+  if (type == "level") {                      # accepts 3, "3", "M3", "m3"
+    n <- suppressWarnings(as.numeric(sub("^[Mm]\\s*", "", v)))
+    return(list(n, which(!blank & !(n %in% 1:5))))
+  }
   if (type == "quarter") {
     v <- toupper(gsub("\\s|-", "", v))
     return(list(v, which(!blank & !grepl("^\\d{4}Q[1-4]$", v))))
@@ -212,7 +234,7 @@ read_input_excel <- function(path = input_path(), strict = TRUE) {
       v <- cc[[1]]
       if (length(cc[[2]])) {
         what <- c(num = "number", int = "whole number", quarter = "quarter (YYYYQn)",
-                  month = "month (YYYY-MM)")[[sp[[1]]]]
+                  month = "month (YYYY-MM)", level = "maturity level (M1 to M5)")[[sp[[1]]]]
         probs <- c(probs, sprintf("sheet '%s', column '%s', row %s: '%s' is not a %s", t, col,
                                   cc[[2]] + 1, df[[col]][cc[[2]]], what))
       }
@@ -235,6 +257,7 @@ read_input_excel <- function(path = input_path(), strict = TRUE) {
     stop("Problems in ", basename(path), ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
   }
   if (!is.null(out$enabler)) out$enabler$cost_basis <- tolower(out$enabler$cost_basis)
+  if (is.null(out$curve) || !nrow(out$curve)) out$curve <- DEFAULT_CURVES
   probs <- c(probs, validate_tables(out, basic = FALSE))
   if (strict && length(probs)) {
     stop("Problems in ", basename(path), ":\n- ", paste(probs, collapse = "\n- "), call. = FALSE)
@@ -267,16 +290,23 @@ validate_tables <- function(t, basic = TRUE) {
     dup <- unique(key[duplicated(key)])
     if (length(dup)) probs <- c(probs, sprintf("%s: duplicate %s", n, paste(dup, collapse = ", ")))
   }
-  empty <- c("process", "result", "concept", "enabler", "result_enabler")
+  empty <- c("process", "milestone", "metric", "metric_milestone", "concept", "enabler", "milestone_enabler")
   empty <- empty[vapply(empty, function(n) is.null(t[[n]]) || nrow(t[[n]]) == 0, TRUE)]
   probs <- c(probs, sprintf("sheet '%s' has no rows", empty))
   if (length(empty)) return(probs)
-  r <- t$result
-  half <- xor(is.na(r$baseline), is.na(r$target))
+  if (is.null(t$curve) || !nrow(t$curve)) t$curve <- DEFAULT_CURVES
+  m <- t$metric; p <- t$process; cv <- t$curve
+  half <- xor(is.na(m$baseline), is.na(m$target))
+  ok_lvl <- function(x) !is.na(x) & x %in% 1:5
+  cm <- as.matrix(cv[, paste0("m", 1:5)])
+  bad_curve <- apply(cm, 1, function(r) anyNA(r) || any(r < 0 | r > 100) || any(diff(r) < -1e-9))
   c(probs,
-    sprintf("result %s: a measure needs both baseline and target", r$id)[half],
-    sprintf("result %s: value_driver '%s' must be oil_price, fte_cost or none", r$id, r$value_driver)[
-      !r$value_driver %in% c("oil_price", "fte_cost", "none")],
+    sprintf("process %s: target level M%s is below its current level M%s", p$id, p$target_level, p$current_level)[
+      ok_lvl(p$current_level) & ok_lvl(p$target_level) & p$target_level < p$current_level],
+    sprintf("metric %s: a measure needs both baseline and target", m$id)[half],
+    sprintf("metric %s: value_driver '%s' must be oil_price, fte_cost or none", m$id, m$value_driver)[
+      !m$value_driver %in% c("oil_price", "fte_cost", "none")],
+    sprintf("curve %s: m1..m5 must be percentages from 0 to 100 that never decrease", cv$id)[bad_curve],
     sprintf("concept %s: enabler_group '%s' must be people, digital, data or infra",
             t$concept$id, t$concept$enabler_group)[!t$concept$enabler_group %in% GROUPS$id],
     sprintf("enabler %s: cost_basis '%s' must be fixed or per_process",
@@ -307,14 +337,19 @@ read_config_excel <- function(path = input_path()) {
 write_input_excel <- function(path, data = NULL, config = config_read(board_type = "")) {
   sheets <- lapply(stats::setNames(ROADMAP_TABLES, ROADMAP_TABLES), function(t) {
     cols <- names(INPUT_SPEC[[t]])
-    if (is.null(data)) {
+    if (is.null(data) || is.null(data[[t]])) {
       df <- as.data.frame(stats::setNames(replicate(length(cols), character(0), simplify = FALSE), cols))
     } else {
       df <- data[[t]][, cols, drop = FALSE]
+      for (col in cols[vapply(INPUT_SPEC[[t]], function(x) x[[1]] == "level", TRUE)]) {
+        df[[col]] <- ifelse(is.na(df[[col]]), NA_character_, paste0("M", df[[col]]))   # written as M1..M5
+      }
     }
     rownames(df) <- NULL
     df
   })
+  if (!is.null(data) && (is.null(data$curve) || !nrow(data$curve))) sheets$curve <- DEFAULT_CURVES
+  if (is.null(data)) sheets$curve <- DEFAULT_CURVES            # the template ships the proposed curves
   readme <- do.call(rbind, lapply(ROADMAP_TABLES, function(t) {
     sp <- INPUT_SPEC[[t]]
     data.frame(sheet = t, column = names(sp),
@@ -336,7 +371,8 @@ write_input_excel <- function(path, data = NULL, config = config_read(board_type
                     "Help text under the slider"),
     stringsAsFactors = FALSE))
   cfg <- config[, CONFIG_COLUMNS]
-  writexl::write_xlsx(c(list(README = readme), sheets, list(config = cfg)), path)
+  levels <- data.frame(level = LEVELS$code, name = LEVELS$name, key = LEVELS$key, description = LEVELS$description)
+  writexl::write_xlsx(c(list(README = readme), sheets, list(config = cfg, levels = levels)), path)
   invisible(path)
 }
 

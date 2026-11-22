@@ -8,26 +8,32 @@ test_that("formatting helpers", {
 
 test_that("selection parsing and search", {
   expect_null(parse_selection(""))
-  expect_null(parse_selection("kpi:K1"))
-  expect_equal(parse_selection("result:K1"), list(type = "result", id = "K1"))
+  expect_null(parse_selection("result:K1"))
+  expect_equal(parse_selection("milestone:S3"), list(type = "milestone", id = "S3"))
+  expect_equal(parse_selection("metric:K1")$type, "metric")
   d <- tiny_data(); g <- build_graph(d)
-  expect_equal(search_results(d, g, ""), c("K1", "K2", "M1"))
-  expect_equal(search_results(d, g, "e2"), "K1")               # via a required enabler
-  expect_equal(search_results(d, g, "c3"), c("K1", "K2", "M1")) # via a concept name
+  expect_equal(search_milestones(d, g, ""), c("S3", "S4", "T2", "T3"))
+  expect_equal(search_milestones(d, g, "e4"), "S4")               # via a required enabler
+  expect_equal(search_milestones(d, g, "k2"), c("T2", "T3"))      # via a metric it moves
+  expect_equal(search_milestones(d, g, "c1"), c("S3", "T3"))      # via a concept name (foundation)
 })
 
-test_that("payload: shown results and the enablers they need", {
+test_that("payload: milestones in scope, the enablers they need, metrics and maturity paths", {
   d <- tiny_data()
-  m <- run_model(d, build_graph(d), tiny_cfg(), scope = "P2")
+  m <- run_model(d, build_graph(d), tiny_cfg(), targets = c(P1 = 2))
   p <- viz_payload(d, m)
-  expect_equal(p$results$id[p$results$show], "K2")
-  expect_equal(p$enablers$id[p$enablers$show], "E3")
-  expect_equal(p$enablers$concept[p$enablers$id == "E3"], "c3")
-  expect_equal(p$results$measure[p$results$id == "K1"], "1% \u2192 2%")
-  expect_false(p$results$measured[p$results$id == "M1"])
+  expect_equal(p$milestones$id[p$milestones$show], c("T2", "T3"))
+  expect_setequal(p$enablers$id[p$enablers$show], c("E1", "E2", "E3"))
+  expect_equal(p$metrics$id[p$metrics$show], "K2")
+  expect_equal(p$metrics$measure[p$metrics$id == "K1"], "1% \u2192 2%")
+  expect_equal(p$processes$tgt, c(2, 3))
+  expect_length(p$processes$path[[1]], 0)
+  expect_equal(p$processes$path[[2]][[2]]$t, 2027.5)
+  js <- jsonlite::toJSON(p, dataframe = "rows", auto_unbox = TRUE)
+  expect_match(js, '"path":[{"level":2,"t":2026.5}', fixed = TRUE)
 })
 
-test_that("views render: headline, detail panels, chart, diagram", {
+test_that("views render: headline, detail panels, charts, diagram, levels", {
   d <- tiny_data(); g <- build_graph(d)
   m <- run_model(d, g, tiny_cfg())
   txt <- function(x) gsub("\\s+", " ", as.character(x))
@@ -35,11 +41,16 @@ test_that("views render: headline, detail panels, chart, diagram", {
   expect_match(h, fmt_musd(portfolio(m)$total_cost, 0), fixed = TRUE)
   expect_match(h, "all on time", fixed = TRUE)
   expect_match(txt(headline(d, tiny_model(cost_multiplier = 2), compare = portfolio(m))), "fig-d neg", fixed = TRUE)
-  expect_match(txt(detail_ui(d, m, NULL)), "3 results in scope", fixed = TRUE)
-  expect_match(txt(detail_ui(d, m, list(type = "result", id = "K1"))), "Requires 2 enablers", fixed = TRUE)
-  expect_match(txt(detail_ui(d, m, list(type = "result", id = "M1"))), "none of its own", fixed = TRUE)
+  expect_match(txt(detail_ui(d, m, NULL)), "2 metrics", fixed = TRUE)
+  expect_match(txt(detail_ui(d, m, list(type = "milestone", id = "S3"))), "Requires 2 enablers", fixed = TRUE)
+  expect_match(txt(detail_ui(d, tiny_model(targets = c(P1 = 2)), list(type = "milestone", id = "S4"))), "out of scope", fixed = TRUE)
+  expect_match(txt(detail_ui(d, m, list(type = "metric", id = "K1"))), "67% of the impact", fixed = TRUE)
   expect_match(txt(detail_ui(d, m, list(type = "enabler", id = "E3"))), "per process", fixed = TRUE)
-  expect_match(txt(detail_ui(d, m, list(type = "process", id = "P1"))), "2 results", fixed = TRUE)
+  expect_match(txt(detail_ui(d, m, list(type = "process", id = "P1"))), "M2 today", fixed = TRUE)
   expect_match(as.character(cash_chart(portfolio(m), portfolio(m))), "<svg", fixed = TRUE)
-  expect_match(as.character(concept_diagram()), "Foundations", fixed = TRUE)
+  expect_match(as.character(concept_diagram()), "Milestones", fixed = TRUE)
+  expect_match(as.character(curves_chart(DEFAULT_CURVES)), "Threshold", fixed = TRUE)
+  expect_match(txt(levels_table()), "Adaptive", fixed = TRUE)
+  fr <- frontier_enumerate(d, g, tiny_cfg())
+  expect_match(as.character(frontier_chart(fr, fr$base)), "fr-line", fixed = TRUE)
 })

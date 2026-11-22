@@ -1,5 +1,6 @@
-#' Application UI: three views. Roadmap (what, when, for what value),
-#' Scenario (what if: adoption, price, cost, acceleration), Model (how it works).
+#' Application UI: four views. Roadmap (what, when, for what value),
+#' Scenario (what if: maturity targets, adoption, price, cost, acceleration),
+#' Frontier (which maturity targets are worth pursuing), Method (how it works).
 app_ui <- function(request) {
   ctx <- app_context()
   shiny::fluidPage(
@@ -8,7 +9,8 @@ app_ui <- function(request) {
       tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
       tags$link(rel = "stylesheet", href = "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"),
       tags$link(rel = "stylesheet", href = "www/styles.css"),
-      tags$script(src = "www/roadmap.js", defer = NA)),
+      tags$script(src = "www/roadmap.js", defer = NA),
+      tags$script(src = "www/frontier.js", defer = NA)),
     tags$header(class = "top",
       tags$div(class = "brand", tags$span(class = "brand-t", "Transformation Roadmap"),
                tags$span(class = "brand-y", "2026 \u2013 2029")),
@@ -16,6 +18,7 @@ app_ui <- function(request) {
     shiny::tabsetPanel(id = "view", type = "tabs",
       shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
       shiny::tabPanel("Scenario", value = "scenario", mod_scenario_ui("scenario", ctx$cfg, ctx$data)),
-      shiny::tabPanel("Model", value = "model", mod_model_ui("model")))
+      shiny::tabPanel("Frontier", value = "frontier", mod_frontier_ui("frontier")),
+      shiny::tabPanel("Method", value = "model", mod_model_ui("model")))
   )
 }

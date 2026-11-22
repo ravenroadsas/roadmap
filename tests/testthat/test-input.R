@@ -14,16 +14,20 @@ test_that("packaged workbook loads and every sheet has its columns", {
   expect_true(all(grepl("^\\d{4}Q[1-4]$", x$enabler$start_q)))
 })
 
-test_that("write then read gives the same tables, plus a README sheet", {
+test_that("write then read gives the same tables, plus README and levels sheets", {
   skip_if_not_installed("writexl")
   f <- tempfile(fileext = ".xlsx")
   write_input_excel(f, tiny_tables())
   expect_equal(readxl::excel_sheets(f)[1], "README")
+  expect_true("levels" %in% readxl::excel_sheets(f))
+  expect_equal(readxl::read_excel(f, "process")$current_level, c("M2", "M1"))   # levels written as M1..M5
   back <- read_input_excel(f)
   expect_equal(back$enabler, tiny_tables()$enabler, ignore_attr = TRUE)
+  expect_equal(back$milestone, tiny_tables()$milestone, ignore_attr = TRUE)
   t <- tempfile(fileext = ".xlsx")
-  write_input_excel(t)                                    # empty template
-  expect_error(read_input_excel(t), "sheet 'result' has no rows", fixed = TRUE)
+  write_input_excel(t)                                    # empty template, with the proposed curves
+  expect_equal(nrow(readxl::read_excel(t, "curve")), nrow(DEFAULT_CURVES))
+  expect_error(read_input_excel(t), "sheet 'milestone' has no rows", fixed = TRUE)
 })
 
 test_that("optional columns get defaults; extra columns, blank rows and loose formats are tolerated", {
@@ -31,60 +35,70 @@ test_that("optional columns get defaults; extra columns, blank rows and loose fo
   tabs <- tiny_tables()
   tabs$enabler$scalability <- NULL
   tabs$enabler$comment <- "ignored"
-  tabs$result$value_driver <- NULL
-  tabs$result$value_musd[3] <- NA                           # result without value
-  tabs$enabler$cost_basis <- c("", "Per_Process", "fixed")    # empty -> fixed; case tolerated
+  tabs$metric$value_driver <- NULL
+  tabs$metric$value_musd[2] <- NA
+  tabs$enabler$cost_basis <- c("", "Per_Process", "fixed", "FIXED")
   tabs$enabler$start_q[1] <- "2026 q1"
-  tabs$result$due[3] <- "2026-3"
-  tabs$result_enabler <- rbind(tabs$result_enabler, data.frame(result_id = NA, enabler_id = NA, weight = NA))
-  x <- read_input_excel(xlsx_from(tabs))
-  expect_equal(x$enabler$scalability, c(0, 0, 0))
-  expect_equal(x$result$value_driver, c("none", "none", "none"))
-  expect_equal(x$result$value_musd[3], 0)
-  expect_equal(x$enabler$cost_basis, c("fixed", "per_process", "fixed"))
+  tabs$milestone$due[3] <- "2026-3"
+  tabs$milestone$level <- c("M3", "m4", "2", "M 3")             # levels as M3, m4, 2
+  tabs$milestone_enabler <- rbind(tabs$milestone_enabler, data.frame(milestone_id = NA, enabler_id = NA, weight = NA))
+  x <- read_input_excel(xlsx_from(tabs, drop_sheet = "curve"))   # curve sheet left out: default curves
+  expect_equal(x$enabler$scalability, rep(0, 4))
+  expect_equal(x$metric$value_driver, c("none", "none"))
+  expect_equal(x$metric$value_musd[2], 0)
+  expect_equal(x$enabler$cost_basis, c("fixed", "per_process", "fixed", "fixed"))
   expect_false("comment" %in% names(x$enabler))
   expect_equal(x$enabler$start_q[1], "2026Q1")
-  expect_equal(x$result$due[3], "2026-03")
-  expect_equal(nrow(x$result_enabler), 4)
+  expect_equal(x$milestone$due[3], "2026-03")
+  expect_equal(x$milestone$level, c(3, 4, 2, 3))
+  expect_equal(nrow(x$milestone_enabler), 5)
+  expect_equal(x$curve, DEFAULT_CURVES)
 })
 
 test_that("problems are all reported with sheet, column and row", {
   skip_if_not_installed("writexl")
   tabs <- tiny_tables()
-  tabs$result$due <- NULL                                   # required column missing
-  tabs$enabler$capex_musd <- c("4", "two", "1")            # not a number (row 3)
+  tabs$milestone$due <- NULL                                # required column missing
+  tabs$enabler$capex_musd <- c("4", "two", "1", "3")        # not a number (row 3)
   tabs$enabler$end_q[3] <- "Q3 2027"                        # not a quarter (row 4)
+  tabs$enabler$level[4] <- "M7"                             # not a level (row 5)
   tabs$process <- rbind(tabs$process, tabs$process[1, ])    # duplicate ID
   err <- tryCatch(read_input_excel(xlsx_from(tabs, drop_sheet = "enabler_dependency")), error = conditionMessage)
   expect_match(err, "sheet 'enabler_dependency' is missing", fixed = TRUE)
-  expect_match(err, "sheet 'result': column 'due' is missing", fixed = TRUE)
+  expect_match(err, "sheet 'milestone': column 'due' is missing", fixed = TRUE)
   expect_match(err, "sheet 'enabler', column 'capex_musd', row 3: 'two' is not a number", fixed = TRUE)
   expect_match(err, "sheet 'enabler', column 'end_q', row 4: 'Q3 2027' is not a quarter", fixed = TRUE)
+  expect_match(err, "sheet 'enabler', column 'level', row 5: 'M7' is not a maturity level (M1 to M5)", fixed = TRUE)
   expect_match(err, "sheet 'process': duplicate P1", fixed = TRUE)
 })
 
-test_that("broken references and bad groups are reported after the format checks", {
+test_that("broken references, bad values and inconsistent levels are reported after the format checks", {
   skip_if_not_installed("writexl")
   tabs <- tiny_tables()
-  tabs$result_enabler$result_id[1] <- "K9"
+  tabs$milestone_enabler$milestone_id[1] <- "S9"
   tabs$concept$enabler_group[2] <- "software"
   tabs$enabler$cost_basis[1] <- "shared"
   tabs$enabler$concept_id[3] <- "C9"
-  tabs$result$baseline[1] <- NA
-  tabs$result$value_driver <- c("oil_price", "gas", "none")
+  tabs$metric$baseline[1] <- NA
+  tabs$metric$value_driver <- c("oil_price", "gas")
+  tabs$process$target_level[2] <- 1; tabs$process$current_level[2] <- 2
+  tabs$curve$m3[1] <- 30                                     # concave goes down from M2 to M3
   err <- tryCatch(read_input_excel(xlsx_from(tabs)), error = conditionMessage)
-  expect_match(err, "unknown result", fixed = TRUE)
-  expect_match(err, "result K1: a measure needs both baseline and target", fixed = TRUE)
+  expect_match(err, "unknown milestone", fixed = TRUE)
+  expect_match(err, "metric K1: a measure needs both baseline and target", fixed = TRUE)
   expect_match(err, "cost_basis 'shared'", fixed = TRUE)
   expect_match(err, "unknown concept C9", fixed = TRUE)
   expect_match(err, "value_driver 'gas'", fixed = TRUE)
   expect_match(err, "enabler_group 'software'", fixed = TRUE)
+  expect_match(err, "process P2: target level M1 is below its current level M2", fixed = TRUE)
+  expect_match(err, "curve concave: m1..m5 must be percentages", fixed = TRUE)
 })
 
 test_that("date conflicts do not block the import", {
   skip_if_not_installed("writexl")
   tabs <- tiny_tables()
   tabs$enabler$end_q[3] <- "2025Q4"                         # ends before it starts
+  tabs$enabler$level[4] <- 5                                # level above the milestone that needs it
   expect_silent(x <- read_input_excel(xlsx_from(tabs)))
   expect_equal(nrow(date_issues(prepare_data(x))), 1)
 })
@@ -130,25 +144,3 @@ test_that("config problems are reported together", {
   expect_error(config_read(board_type = "", input = f2), "sheet 'config' is missing", fixed = TRUE)
 })
 
-test_that("result_process is optional, and shared results round-trip", {
-  skip_if_not_installed("writexl")
-  tabs <- tiny_tables()
-  x <- read_input_excel(xlsx_from(tabs, drop_sheet = "result_process"))   # sheet left out
-  expect_equal(nrow(x$result_process), 0)
-  tabs$result_process <- data.frame(result_id = c("K1", "K1"), process_id = c("P1", "P2"), share = c(3, NA))
-  x <- read_input_excel(xlsx_from(tabs))
-  expect_equal(x$result_process$share, c(3, 1))                         # empty share -> 1
-  f <- tempfile(fileext = ".xlsx")
-  write_input_excel(f, x)
-  expect_equal(read_input_excel(f)$result_process, x$result_process, ignore_attr = TRUE)
-})
-
-test_that("result_process problems are reported", {
-  skip_if_not_installed("writexl")
-  tabs <- tiny_tables()
-  tabs$result_process <- data.frame(result_id = c("K1", "K9", "K2"), process_id = c("P2", "P1", "P9"), share = c(1, 1, 1))
-  err <- tryCatch(read_input_excel(xlsx_from(tabs)), error = conditionMessage)
-  expect_match(err, "result_process K1: list its lead process P1 too", fixed = TRUE)
-  expect_match(err, "result_process K9-P1: unknown result", fixed = TRUE)
-  expect_match(err, "result_process K2-P9: unknown process", fixed = TRUE)
-})

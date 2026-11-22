@@ -1,24 +1,83 @@
-# Transformation Roadmap 2026–2029 · v2
+# Transformation Roadmap 2026–2029 · v3 · digital maturity
 
-**Enablers make results possible. Results generate value for processes.**
+**Investment builds enablers. Enablers and each process's digital maturity target make milestones possible. Milestones move metrics up their impact curve. Metrics create value.**
 
-v2 keeps the principles of v1 (branch `claude/transformation-roadmap-dashboard-hpay54`) and reduces the interface to the essential: three views, four levers, one result category.
+v3 (branch `claude/roadmap-v3-maturity`) builds on v2 (`claude/roadmap-v2`): every process has a current and a target digital maturity, from **M1 Manual** to **M5 Adaptive**. Changing a target changes which milestones are pursued, which enablers must be built, and how much of each metric's impact is reached.
 
 ```
-CONCEPT ─groups─► ENABLER ──makes possible (weight)──► RESULT ──value $M/yr──► PROCESS(es)
- (FTE)              │ capex, opex, start → go-live        │ due date, optional measure
-                    └ requires other enablers (foundations)
+                 PROCESSES (current → target M)
+                          │
+INVESTMENT → ENABLERS ────┴──► MILESTONES ──► METRICS ──impact curve──► VALUE
+             (level M,          (level M,     (baseline → target at M5,
+              in concepts)       due date)     % of impact vs M)
 ```
+
+| Level | Name | Key trait |
+|---|---|---|
+| M1 | Manual | Dependence on human intervention |
+| M2 | Assisted | Digital support to execution |
+| M3 | Integrated | End-to-end integration and traceability |
+| M4 | Automated | Automation and data-driven decisions |
+| M5 | Adaptive | Anticipation, adaptability and continuous optimisation |
 
 ## Views
 
 | View | What it answers |
 |---|---|
-| **Roadmap** | What, when, for what value, in the chosen **scope** (the processes being transformed). Headline: investment, value, NPV, when all results are ready. Chronogram: results per process (size = value, red = late) above the enablers by group › concept. Value chain: Foundations → Enablers → Results → Processes. Click anything to see what it depends on. |
-| **Scenario** | What if: adoption time, oil price, cost multiplier, and acceleration (plan, more resources, every result by a target date, or every result by its due date). One chart of cumulative net value against the base case, and what acceleration costs. |
-| **Model** | How it works: the chain, eight definitions, and the data workbook (download, template). |
+| **Roadmap** | What, when, for what value. Chronogram: per process, its maturity over time (a strip from today's level to the target) and its milestones (numbered by level, red when late), above the enablers by group › concept. Value chain: Foundations → Enablers → Milestones → Metrics → Processes. Click anything to see what it depends on. |
+| **Scenario** | What if: the **maturity target of each process** (M1–M5), adoption time, oil price, cost multiplier, acceleration. Headline and cumulative net value against the base case; by process, the change in milestones, value, cost and NPV; which enablers come in or drop out. |
+| **Frontier** | Which combination of targets is worth pursuing. Every combination is evaluated (each process from its current level to M5) and plotted as investment vs NPV; the efficient frontier holds the combinations with the highest NPV for their investment (ROI in the tooltip and table). Pick one and apply it to the Scenario view. |
+| **Method** | How it works: the logic diagram, the M1–M5 levels and how to assess a process, the impact curves, definitions, and the data workbook (download, template). |
+
+## Calculation
+
+- **Scope**: a milestone is pursued when its process's target is at or above the milestone's level. Unticked processes in the Roadmap scope stay at their current level.
+- **Investment**: the enablers that the pursued milestones require, with their foundations. `per_process` enablers scale with the processes that need them: (needing / served) ^ scalability.
+- **Enabler level**: the maturity an enabler enables. It is checked, not used to add cost: an enabler of a higher level than a milestone that requires it is flagged in the Method view (level checks).
+- **Ready date**: a milestone is ready when its last enabler or foundation goes live; late when after the end of its due month. A process reaches level L when its milestones up to L are ready (a level with no milestone of its own is reached with the next one up).
+- **Metric value**: a metric climbs its impact curve through the levels of the milestones linked to it. Each step adds (curve(L) − curve(previous)) / (curve(M5) − curve(current)) of `value_musd`, ramped linearly over the adoption time from the date the step is reached, × realisation × driver (oil price or FTE cost vs base). `value_musd` is the annual value of going from the current level to M5.
+- **Impact curves** (sheet `curve`, % of impact at M1…M5; editable): *Diminishing returns* 0-45-75-92-100 (production), *Threshold* 0-5-15-55-100 (man-hours), *Linear*, *S-curve* 0-10-45-85-100 (cycle times, NPT).
+- **Cost / year**: capex over the build, concept people during the build (partner at a premium), opex from go-live; all × cost multiplier.
+- **Acceleration**: duration × r^(−scalability), start fixed; effort × r^(1−scalability). The solver back-calculates r per enabler for the milestones in scope.
+- **Frontier**: exact enumeration with the same formulas, on plan resources and the Scenario levers. Costs are precomputed per enabler and switched on by the lowest milestone level that needs them; a metric's value is precomputed for every combination of the few processes whose milestones move it. 65,536 combinations take about half a second.
+
+## Data
+
+One Excel workbook (`ROADMAP_INPUT_XLSX`, default `inst/extdata/roadmap_input.xlsx`), one sheet per table. Levels are written `M1`…`M5` (a plain number is accepted).
+
+```
+process            (id, name, owner, current_level, target_level)
+milestone          (id, process_id, name, due [YYYY-MM], level)
+metric             (id, process_id, name, unit, baseline, target [at M5], value_musd [current → M5],
+                    value_driver, curve_id)
+metric_milestone   (metric_id, milestone_id)                     -- several milestones can move one metric
+curve              (id, name, m1, m2, m3, m4, m5 [% of impact], description)   -- optional: defaults
+concept            (id, name, enabler_group [people|digital|data|infra], subgroup, fte_internal, fte_partner)
+enabler            (id, concept_id, name, level, start_q, end_q, capex_musd, opex_musd_yr,
+                    cost_basis [fixed|per_process], scalability)
+milestone_enabler  (milestone_id, enabler_id, weight)            -- milestone requires enabler
+enabler_dependency (enabler_id, requires_id)                     -- prerequisites (foundations)
+config             (key, label, unit, value, min, max, step, …, is_pct, in_sensitivity = lever, description)
+levels             (reference: M1–M5 names and descriptions; not read)
+```
+
+Your roadmap `data/roadmap_input_v1.xlsx` is converted to v3. **Amber cells are proposals to validate**:
+- process `current_level` (M2 for all) and `target_level` (the highest milestone level);
+- enabler `level`, proposed from what each enabler builds (e.g. data governance M2, integrated workflows and ROC M3, agentic AI M4, iROC and scenario optimisation M5);
+- results with a measure became **metrics** with a proposed curve (production → diminishing returns, headcount ratios → threshold, cycle times / NPT / CoS → S-curve); `target` and `value_musd` now mean *at M5*;
+- each metric's enablers were grouped by level into **milestones** of its process (existing milestones of the same process and level were reused: e.g. *200 wells per engineer* at M4, *250 wells per engineer* at M5); generated milestones are named "*metric: level (Mn)*" and take the metric's due date. The `source` column says where each row comes from.
+
+The sample workbook was converted the same way; its shared result (unplanned downtime) now belongs to its lead process and is moved by the predictive-maintenance milestone of asset maintenance.
+
+## What changed from v2
+
+- **Digital maturity** on processes (current, target), milestones and enablers; the target is a scenario variable.
+- **Milestones and metrics are separate again**: milestones are the step changes (level, due date, enablers); metrics carry the value and an **impact curve**. `result`, `result_enabler` and `result_process` are replaced by `milestone`, `metric`, `metric_milestone`, `milestone_enabler` and `curve`.
+- **Frontier tab** and **Method** (formerly Model) with the maturity framework.
 
 ## Editor
+
+> Not yet updated to the v3 data model (planned after the dashboard iterations); on this branch it still expects v2 workbooks.
 
 A companion app to build and edit the roadmap without touching Excel cell by cell. It works on a **copy**: import, edit, export. It never writes the workbook the roadmap app reads.
 
@@ -36,60 +95,25 @@ shiny::runApp("editor_app.R")                  # local
 # Posit Connect: deploy the repository again (app.R) and set ROADMAP_APP=editor
 ```
 
-## What changed from v1
-
-- **One result category.** KPI and milestone are merged: every result has a due date and a value; a *measure* (unit, baseline → target) is optional. A result without a measure is a step change, achieved or not.
-- **Concepts.** Enablers are classified group › subgroup › **concept** › enabler. People are planned on the concept (`fte_internal`, `fte_partner` over its build window) and spread over its enablers in proportion to their build duration, so total effort is kept.
-- **Scope instead of filters.** Selecting processes asks "what if we transform only these": value counts the results they hold (at their share, for shared results); investment counts only the enablers those results need.
-- **Cost basis.** `fixed` enablers cost the same whatever the scope. `per_process` enablers (e.g. change-management sessions) scale with the processes in scope: cost × (processes in scope / processes served) ^ scalability.
-- **Four levers.** Adoption time (ready → full value), Brent price, cost multiplier (capex, people and opex), acceleration. Realisation, FTE cost, partner premium, discount rate and horizon are fixed assumptions in the config sheet.
-- **No chart library.** Charts are plain SVG; `echarts4r` is no longer a dependency.
-
-## Data
-
-One Excel workbook (`ROADMAP_INPUT_XLSX`, default `inst/extdata/roadmap_input.xlsx`), one sheet per table:
-
-```
-process            (id, name, owner)
-result             (id, process_id → lead process, name, due [YYYY-MM], value_musd, value_driver,
-                    unit, baseline, target)                       -- measure optional
-result_process     (result_id, process_id, share)                -- optional: shared results
-concept            (id, name, enabler_group [people|digital|data|infra], subgroup, fte_internal, fte_partner)
-enabler            (id, concept_id, name, start_q, end_q, capex_musd, opex_musd_yr,
-                    cost_basis [fixed|per_process], scalability)
-result_enabler     (result_id, enabler_id, weight)               -- result requires enabler
-enabler_dependency (enabler_id, requires_id)                     -- prerequisites (foundations)
-config             (key, label, unit, value, min, max, step, …, is_pct, in_sensitivity = lever, description)
-```
-
-Your roadmap is `data/roadmap_input_v1.xlsx`, converted to this format: 11 concepts proposed from the enabler map, FTE moved from enablers to concepts with the same total effort, role change and integrated teams set to `per_process`. Amber cells are placeholders; the `source` column says where each row comes from.
-
-## Calculation
-
-- **Ready date** of a result: the latest go-live across its required enablers and their prerequisites. **Late** when after the end of its due month.
-- **Value / year**: `value_musd` × realisation × driver (oil price or FTE cost vs base) × adoption ramp (linear from ready to full over the adoption time).
-- **Cost / year**: capex over the build, concept people during the build (partner at a premium), opex from go-live; all × cost multiplier.
-- **Acceleration**: duration × r^(−scalability), start fixed; effort × r^(1−scalability). The solver back-calculates r per enabler for a target date or for each result's due date, and lists what can't make it.
-- **Attributed cost** (detail panels): each enabler's cost split across the results that require it by weight; foundations pass theirs on.
-
 ## Code
 
 ```
 R/
   data_access.R      Excel input (read, validate, export) and database
   config.R           config sheet (levers and fixed assumptions)
-  fct_graph.R        dependency graph, shares, validation, date checks
-  fct_model.R        concepts → enabler FTE, schedule, cost, value, scope, solver
+  fct_graph.R        dependency graph, metric links, validation, date and level checks
+  fct_model.R        concepts → enabler FTE, schedule, maturity scope, metric curves, cost, value, solver
+  fct_frontier.R     enumeration of maturity targets, efficient frontier, chart
   fct_payload.R      data for the browser canvas
   fct_detail.R       detail panel
-  fct_views.R        headline figures, SVG chart, concept diagram
+  fct_views.R        headline figures, SVG charts, logic diagram, levels and curves
   fct_timing.R       scenario vs base
-  mod_roadmap_*, mod_scenario_*, mod_model_*   one ui / server pair per view
+  mod_roadmap_*, mod_scenario_*, mod_frontier_*, mod_model_*   one ui / server pair per view
   run_editor.R       editor app: shell, shared state, undo
   editor_data.R      editor operations: items, connections, board payload, import
   fct_editor_views.R editor lists, relations, link descriptions, model check
   mod_edit_start_*, mod_edit_items_*, mod_edit_board_*, mod_edit_export_*   editor steps
-inst/app/www/        styles.css, roadmap.js (chronogram, value chain, client-side)
+inst/app/www/        styles.css, roadmap.js (chronogram, value chain, client-side), frontier.js
 inst/editor/www/     editor.css, editor.js (drag-to-connect board)
 app.R, editor_app.R  launch files (roadmap app, editor)
 docs/data_authoring_guide.md   how the authoring agent formats the data
@@ -118,4 +142,4 @@ On Posit Connect the signed-in user is shown in the header; there is no access s
 
 ### Performance
 
-Data, graph and config load once per R process and are shared by sessions. The canvas renders in the browser (clicks, highlighting, hover and view switching never call R); R sends a new payload only when the scope, the search or the scenario changes.
+Data, graph and config load once per R process and are shared by sessions. The canvas renders in the browser (clicks, highlighting, hover and view switching never call R); R sends a new payload only when the scope, the search or the scenario (levers, maturity targets) changes. The frontier is cached per set of levers.

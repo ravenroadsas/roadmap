@@ -14,12 +14,12 @@ headline <- function(data, model, compare = NULL, note = NULL) {
   }
   fig <- function(label, value, sub, d = NULL) tags$div(class = "fig",
     tags$div(class = "fig-l", label), tags$div(class = "fig-v", value, d), tags$div(class = "fig-s", sub))
-  n_late <- nrow(model$late[model$late$result_id %in% p$results, , drop = FALSE])
+  n_late <- nrow(model$late)
   tags$div(class = "figs",
     fig("Investment", fmt_musd(p$total_cost, 0), paste("to", h), delta(p$total_cost, compare$total_cost, good_up = FALSE)),
     fig("Value", fmt_musd(p$total_value, 0), paste("realised to", h), delta(p$total_value, compare$total_value)),
     fig("Net present value", fmt_musd(p$npv, 0), fmt_pct(model$cfg$discount_rate), delta(p$npv, compare$npv)),
-    fig("All results ready", q_of(p$last_ready),
+    fig("All milestones ready", q_of(p$last_ready),
         if (n_late) tags$span(class = "neg", sprintf("%d late", n_late)) else "all on time",
         if (!is.null(compare) && !is.na(compare$last_ready) && abs(p$last_ready - compare$last_ready) > 0.01)
           tags$span(class = paste("fig-d", if (p$last_ready < compare$last_ready) "pos" else "neg"),
@@ -67,15 +67,80 @@ cash_chart <- function(p, b, W = 760, H = 260) {
                           W, H, paste(o, collapse = "")))
 }
 
-#' The value chain as a concept diagram
+#' The logic: investment -> enablers (concepts) + processes (target M) -> milestones -> metrics (curve) -> value
 concept_diagram <- function() {
-  box <- function(x, y, w, t, s, cls) sprintf(
-    '<g class="cd %s"><rect x="%d" y="%d" width="%d" height="54" rx="27"/><text class="cd-t" x="%d" y="%d">%s</text><text class="cd-s" x="%d" y="%d">%s</text></g>',
-    cls, x, y, w, x + 22, y + 24, t, x + 22, y + 40, s)
-  arrow <- function(x1, x2, y) sprintf('<path class="cd-a" d="M%d,%dL%d,%d"/><path class="cd-h" d="M%d,%dl-7,-4v8z"/>', x1, y, x2 - 2, y, x2, y)
-  htmltools::HTML(paste0('<svg class="diagram" viewBox="0 0 940 80" role="img" aria-label="Value chain">',
-    box(0, 12, 200, "Foundations", "enablers other enablers need", "f"), arrow(204, 236, 39),
-    box(240, 12, 200, "Enablers", "money and people in", "e"), arrow(444, 476, 39),
-    box(480, 12, 200, "Results", "due date, optional measure", "r"), arrow(684, 716, 39),
-    box(720, 12, 216, "Value", "$ per year, for processes", "v"), "</svg>"))
+  box <- function(x, y, w, h, t, s = NULL, cls = "") sprintf(
+    '<g class="cd %s"><rect x="%d" y="%d" width="%d" height="%d" rx="14"/><text class="cd-t" x="%d" y="%d" text-anchor="middle">%s</text>%s</g>',
+    cls, x, y, w, h, x + w / 2, y + h / 2 + (if (is.null(s)) 5 else -2), t,
+    if (is.null(s)) "" else sprintf('<text class="cd-s" x="%d" y="%d" text-anchor="middle">%s</text>', x + w / 2, y + h / 2 + 15, s))
+  m <- function(x, y, t, anchor = "middle") sprintf('<text class="cd-m" x="%d" y="%d" text-anchor="%s">%s</text>', x, y, anchor, t)
+  arrow <- function(d, x2, y2, dir = "r") sprintf('<path class="cd-a" d="%s"/><path class="cd-h" d="M%d,%d%s"/>', d, x2, y2,
+    switch(dir, r = "l-8,-4.5v9z", d = "l-4.5,-8h9z"))
+  cpt <- paste(vapply(0:2, function(i) sprintf('<g class="cd c"><rect x="322" y="%d" width="96" height="22" rx="6"/><text class="cd-c" x="370" y="%d" text-anchor="middle">concept</text></g>',
+    196 + i * 27, 211 + i * 27), ""), collapse = "")
+  htmltools::HTML(paste0('<svg class="diagram" viewBox="0 0 980 314" role="img" aria-label="How maturity, investment and value connect">',
+    m(210, 24, "Digital maturity target per process (M1 \u2192 M5)"),
+    box(150, 36, 150, 64, "Processes", "current \u2192 target", "p"),
+    arrow("M300,68H474", 482, 68),
+    box(0, 196, 130, 64, "Investment", "capex, people, opex", "i"),
+    arrow("M130,228H164", 170, 228),
+    '<g class="cd e"><rect x="170" y="186" width="254" height="104" rx="14"/><text class="cd-t" x="244" y="236" text-anchor="middle">Enablers</text><text class="cd-s" x="244" y="253" text-anchor="middle">dates, cost, FTE</text></g>', cpt,
+    m(297, 306, "level (M) it enables"),
+    '<path class="cd-a" d="M424,238H452V68"/><circle class="cd-j" cx="452" cy="68" r="3"/>',
+    box(482, 36, 150, 64, "Milestones", "due date", "ms"),
+    m(557, 120, "level (M)"),
+    arrow("M632,68H660", 666, 68),
+    box(666, 36, 150, 64, "Metrics", "baseline \u2192 target", "k"),
+    m(741, 120, "impact curve: % vs M"),
+    arrow("M816,68H844", 850, 68),
+    box(850, 36, 128, 64, "Value", "$M per year", "v"),
+    '</svg>'))
+}
+
+#' Maturity levels: name, key trait, description
+levels_table <- function() {
+  tags$table(class = "tt lv-tt",
+    tags$thead(tags$tr(tags$th("Level"), tags$th("Key trait"), tags$th("What it looks like"))),
+    tags$tbody(lapply(seq_len(nrow(LEVELS)), function(i) tags$tr(
+      tags$td(tags$span(class = paste0("lv-chip l", i), LEVELS$code[i]), " ", tags$b(LEVELS$name[i])),
+      tags$td(LEVELS$key[i]), tags$td(class = "hint", LEVELS$description[i])))))
+}
+
+#' How levels differ, by dimension
+dimensions_table <- function() {
+  d <- LEVEL_DIMENSIONS
+  tags$table(class = "tt dim-tt",
+    tags$thead(tags$tr(tags$th(""), lapply(LEVELS$code, function(x) tags$th(x)))),
+    tags$tbody(lapply(seq_len(nrow(d)), function(i) tags$tr(
+      tags$td(tags$b(d$dimension[i])), lapply(LEVELS$code, function(x) tags$td(d[[x]][i]))))))
+}
+
+#' Impact curves: % of a metric's impact reached at each level
+curves_chart <- function(curves, W = 520, H = 230) {
+  L <- 44; R <- 150; T <- 14; B <- 26
+  x <- function(l) L + (l - 1) / 4 * (W - L - R)
+  y <- function(v) T + (1 - v / 100) * (H - T - B)
+  o <- character(0)
+  for (v in c(0, 25, 50, 75, 100)) o <- c(o, sprintf('<line class="ch-grid" x1="%d" x2="%.1f" y1="%.1f" y2="%.1f"/><text class="ch-ax" x="%d" y="%.1f" text-anchor="end">%d%%</text>',
+    L, x(5), y(v), y(v), L - 8, y(v) + 3.5, v))
+  for (l in 1:5) o <- c(o, sprintf('<text class="ch-ax" x="%.1f" y="%d" text-anchor="middle">M%d</text>', x(l), H - 8, l))
+  ly <- numeric(0)
+  for (i in seq_len(nrow(curves))) {
+    v <- unlist(curves[i, paste0("m", 1:5)])
+    o <- c(o, sprintf('<polyline class="cv-line c%d" points="%s"/>', (i - 1) %% 6 + 1,
+                      paste(sprintf("%.1f,%.1f", x(1:5), y(v)), collapse = " ")),
+           paste(sprintf('<circle class="cv-dot c%d" cx="%.1f" cy="%.1f" r="2.5"/>', (i - 1) %% 6 + 1, x(1:5), y(v)), collapse = ""))
+  }
+  # labels on the right, spread so they do not overlap
+  yy <- vapply(seq_len(nrow(curves)), function(i) y(curves$m4[i]), 0)
+  ord <- order(yy)
+  pos <- yy[ord]
+  for (j in seq_along(pos)[-1]) pos[j] <- max(pos[j], pos[j - 1] + 14)
+  for (j in seq_along(ord)) {
+    i <- ord[j]
+    o <- c(o, sprintf('<text class="cv-lab c%d" x="%.1f" y="%.1f">%s</text>', (i - 1) %% 6 + 1, x(5) + 12, pos[j] + 4,
+                      htmltools::htmlEscape(curves$name[i])))
+  }
+  htmltools::HTML(sprintf('<svg class="chart curves" viewBox="0 0 %d %d" role="img" aria-label="Impact curves">%s</svg>',
+                          W, H, paste(o, collapse = "")))
 }
