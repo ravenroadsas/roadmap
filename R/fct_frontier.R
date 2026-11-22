@@ -85,18 +85,30 @@ frontier_enumerate <- function(data, graph, cfg, base = cfg, max_combos = 2e6) {
   pts <- data.frame(idx = seq_len(nrow(grid)), investment = cost, value = value,
                     npv = value_npv - cost_npv,
                     roi = ifelse(cost > 0, (value - cost) / cost, NA_real_))
-  list(points = pts, targets = grid, frontier = frontier_rows(pts), n = nrow(grid),
+  list(points = pts, targets = grid, frontier = frontier_rows(pts), frontier_roi = frontier_rows(pts, "roi"), n = nrow(grid),
        reduced = n > max_combos,
        base = match_targets(grid, stats::setNames(p$target_level, p$id)))
 }
 
-#' Rows on the efficient frontier: highest NPV for their investment
-frontier_rows <- function(pts) {
-  o <- order(pts$investment, -pts$npv)
+#' Rows on the efficient frontier
+#'
+#' * NPV: the highest NPV for the investment. A combination is kept when no
+#'   cheaper (or equally cheap) combination has a higher NPV.
+#' * ROI: the highest ROI for investing at least that much. The cheapest
+#'   portfolios always have the best ratio, so the useful question is how
+#'   much return is diluted as the programme grows: a combination is kept
+#'   when no larger (or equal) investment has a higher ROI.
+#' Combinations with no y (ROI with no investment) are left out.
+#' @return row indices, by increasing investment.
+frontier_rows <- function(pts, y = "npv") {
+  v <- pts[[y]]
+  up <- y == "npv"
+  o <- if (up) order(pts$investment, -v) else order(-pts$investment, -v)
+  o <- o[!is.na(v[o])]
   best <- -Inf
   keep <- integer(0)
-  for (i in o) if (pts$npv[i] > best + 1e-9) { keep <- c(keep, i); best <- pts$npv[i] }
-  keep
+  for (i in o) if (v[i] > best + 1e-9) { keep <- c(keep, i); best <- v[i] }
+  if (up) keep else rev(keep)
 }
 
 #' Row of the grid holding a set of targets
@@ -105,44 +117,65 @@ match_targets <- function(grid, targets) {
   match(paste(targets[colnames(grid)], collapse = "|"), key)
 }
 
-#' Investment vs NPV: every combination (as density), the frontier, base and scenario
-frontier_chart <- function(fr, scen_row = NA, pick = NA, ns = "", W = 820, H = 420) {
+#' Investment vs NPV (or ROI): every combination (as density), the frontier, base and scenario
+#' @param y "npv" or "roi". With ROI, portfolios under 5% of the largest
+#'   investment can have huge ratios: the axis is scaled on the others and
+#'   those sit on the top edge, labelled with their value.
+frontier_chart <- function(fr, scen_row = NA, pick = NA, y = c("npv", "roi"), W = 820, H = 420) {
+  y <- match.arg(y)
   pts <- fr$points
+  front <- if (y == "npv") fr$frontier else fr$frontier_roi
+  yv <- pts[[y]]
+  if (y == "roi") yv <- yv * 100
+  ok <- !is.na(yv)
   L <- 64; R <- 24; T <- 22; B <- 40
   xlo <- 0; xhi <- max(pts$investment) * 1.04
-  ylo <- min(0, pts$npv); yhi <- max(pts$npv, 0)
-  pad <- (yhi - ylo) * 0.06; ylo <- ylo - pad; yhi <- yhi + pad
+  ylo <- min(0, yv[ok]); yhi <- max(yv[ok], 0)
+  # very small portfolios can have huge ratios; scale the axis on the rest and clip them at the top
+  big <- ok & pts$investment >= 0.05 * max(pts$investment)
+  cap <- if (any(big)) max(yv[big]) else yhi
+  clipped <- y == "roi" && yhi > 1.3 * max(cap, 1)
+  if (clipped) yhi <- 1.12 * max(cap, 1)
+  pad <- (yhi - ylo) * 0.06; ylo <- ylo - pad; yhi <- yhi + if (clipped) 0 else pad
+  if (yhi - ylo < 1e-9) yhi <- ylo + 10
   sx <- function(v) L + (v - xlo) / (xhi - xlo) * (W - L - R)
-  sy <- function(v) T + (yhi - v) / (yhi - ylo) * (H - T - B)
+  sy <- function(v) T + (yhi - pmin(v, yhi)) / (yhi - ylo) * (H - T - B)
+  ylab <- function(t) if (y == "roi") paste0(formatC(t, format = "f", digits = 0), "%") else formatC(t, format = "f", digits = 0)
   o <- character(0)
   for (t in nice_ticks(ylo, yhi, 5)) o <- c(o, sprintf('<line class="ch-grid" x1="%d" x2="%d" y1="%.1f" y2="%.1f"/><text class="ch-ax" x="%d" y="%.1f" text-anchor="end">%s</text>',
-    L, W - R, sy(t), sy(t), L - 8, sy(t) + 3.5, formatC(t, format = "f", digits = 0)))
+    L, W - R, sy(t), sy(t), L - 8, sy(t) + 3.5, ylab(t)))
   for (t in nice_ticks(xlo, xhi, 6)) o <- c(o, sprintf('<text class="ch-ax" x="%.1f" y="%d" text-anchor="middle">%s</text>', sx(t), H - B + 18, formatC(t, format = "f", digits = 0)))
   o <- c(o, sprintf('<line class="ch-zero" x1="%d" x2="%d" y1="%.1f" y2="%.1f"/>', L, W - R, sy(0), sy(0)),
          sprintf('<text class="ch-ax ttl" x="%d" y="%d" text-anchor="end">Investment to horizon, $M</text>', W - R, H - 4),
-         sprintf('<text class="ch-ax ttl" x="%d" y="%d" text-anchor="start">NPV, $M</text>', L - 40, 10))
+         sprintf('<text class="ch-ax ttl" x="%d" y="%d" text-anchor="start">%s</text>', L - 40, 10,
+                 if (y == "roi") paste0("ROI, %", if (clipped) " (top clipped)" else "") else "NPV, $M"))
   # density: one square per occupied cell
-  cx <- floor((sx(pts$investment) - L) / 6); cy <- floor((sy(pts$npv) - T) / 6)
+  cx <- floor((sx(pts$investment[ok]) - L) / 6); cy <- floor((sy(yv[ok]) - T) / 6)
   cell <- table(paste(cx, cy))
   xy <- do.call(rbind, strsplit(names(cell), " "))
   a <- pmin(1, 0.25 + 0.75 * log1p(as.vector(cell)) / log1p(max(cell)))
   o <- c(o, sprintf('<rect class="fr-cell" x="%d" y="%d" width="5" height="5" fill-opacity="%.2f"/>',
                     L + 6 * as.integer(xy[, 1]), T + 6 * as.integer(xy[, 2]), a))
-  f <- pts[fr$frontier, ]
+  f <- pts[front, ]
+  fy <- yv[front]
   o <- c(o, sprintf('<path class="fr-line" d="%s"/>', paste0(ifelse(seq_len(nrow(f)) == 1, "M", "L"),
-                                                           sprintf("%.1f,%.1f", sx(f$investment), sy(f$npv)), collapse = "")))
+                                                           sprintf("%.1f,%.1f", sx(f$investment), sy(fy)), collapse = "")))
   lv <- function(i) paste(sprintf("%s %s", colnames(fr$targets), lvl(fr$targets[i, ])), collapse = " \u00b7 ")
   tip <- function(i, title) htmltools::htmlEscape(sprintf("<b>%s</b><br>Investment %s \u00b7 NPV %s \u00b7 ROI %s<br>%s", title,
     fmt_musd(pts$investment[i], 0), fmt_musd(pts$npv[i], 0), fmt_pct(pts$roi[i]), lv(i)), attribute = TRUE)
-  best <- f$idx[which.max(f$npv)]
+  best <- f$idx[which.max(fy)]
+  best_lbl <- if (y == "roi") "Highest ROI" else "Highest NPV"
   for (j in seq_len(nrow(f))) {
     i <- f$idx[j]
-    o <- c(o, sprintf('<circle class="fr-pt%s%s" cx="%.1f" cy="%.1f" r="%s" data-pick="%d" data-tip="%s"/>',
-      if (identical(i, pick)) " sel" else "", if (i == best) " best" else "", sx(pts$investment[i]), sy(pts$npv[i]),
-      if (i == best || identical(i, pick)) "6" else "4.5", i, tip(i, if (i == best) "Highest NPV" else sprintf("Frontier portfolio %d", j))))
+    top <- clipped && fy[j] > yhi
+    o <- c(o, sprintf('<circle class="fr-pt%s%s%s" cx="%.1f" cy="%.1f" r="%s" data-pick="%d" data-tip="%s"/>',
+      if (identical(i, pick)) " sel" else "", if (i == best) " best" else "", if (top) " clip" else "",
+      sx(pts$investment[i]), sy(fy[j]),
+      if (i == best || identical(i, pick)) "6" else "4.5", i, tip(i, if (i == best) best_lbl else sprintf("Frontier portfolio %d", j))),
+      if (top) sprintf('<text class="fr-clip" x="%.1f" y="%.1f">%s \u2191</text>', sx(pts$investment[i]) + 9, sy(fy[j]) + 12, ylab(fy[j])))
   }
-  mark <- function(i, cls, label) if (!is.na(i)) sprintf('<g class="%s" data-pick="%d" data-tip="%s"><path d="M%.1f,%.1fl7,7l-7,7l-7,-7z"/><text x="%.1f" y="%.1f">%s</text></g>',
-    cls, i, tip(i, label), sx(pts$investment[i]), sy(pts$npv[i]) - 7, sx(pts$investment[i]) + 10, sy(pts$npv[i]) + 4, label) else ""
+  mark <- function(i, cls, label) if (!is.na(i) && !is.na(yv[i])) sprintf('<g class="%s" data-pick="%d" data-tip="%s"><path d="M%.1f,%.1fl7,7l-7,7l-7,-7z"/><text x="%.1f" y="%.1f">%s</text></g>',
+    cls, i, tip(i, label), sx(pts$investment[i]), sy(yv[i]) - 7, sx(pts$investment[i]) + 10, sy(yv[i]) + 4, label) else ""
   o <- c(o, mark(fr$base, "fr-mk base", "Base"), if (!identical(scen_row, fr$base)) mark(scen_row, "fr-mk scen", "Scenario"))
   htmltools::HTML(sprintf('<svg class="chart frontier" viewBox="0 0 %d %d" role="img" aria-label="Efficient frontier">%s</svg>',
                           W, H, paste(o, collapse = "")))

@@ -125,7 +125,8 @@ function renderChain(H){
   cols.forEach((c,ci)=>{const x0=cx0[ci],nw=cws[ci],off=TOP+(maxN-c.items.length)*(NH+GAP)/2;
     nodes.push(`<text class="c-band" x="${x0}" y="12">${c.t}</text>`);
     c.items.forEach((it,i)=>{const y0=off+i*(NH+GAP);P[it.type+it.id]={x0,x1:x0+nw,cy:y0+NH/2};
-      let cls='';if(H){const on=it.type==='enabler'?H.en.has(it.id):it.type==='milestone'?H.ms.has(it.id):it.type==='metric'?H.mt.has(it.id):H.proc.has(it.id);cls=on?'on':'off'}
+      let cls='';if(H){const on=it.type==='enabler'?H.en.has(it.id):it.type==='milestone'?H.ms.has(it.id):it.type==='metric'?H.mt.has(it.id):H.proc.has(it.id);
+        cls=on?'on':'off';if(on&&it.type==='enabler'&&!H.direct.has(it.id))cls+=' found'}
       if(S.sel&&S.sel.type===it.type&&S.sel.id===it.id)cls+=' sel';if(it.late||(it.type==='enabler'&&EN[it.id].issue))cls+=' bad';
       const hasV=it.v!=null&&it.v>0,tagW=it.tag?it.tag.length*6+8:0,maxc=Math.floor((nw-(hasV?48:14)-(it.g?8:0)-tagW)/6.3);
       const right=hasV?`<text class="n-val" x="${x0+nw-8}" y="${y0+NH/2+3.5}" text-anchor="end">${fmtM(it.v,it.v<10?1:0)}</text>`:'';
@@ -135,12 +136,21 @@ function renderChain(H){
       nodes.push(`<g class="n ${it.type} ${cls}" data-sel="${it.type}:${it.id}" data-tip="<b>${esc(it.name)}</b>"><rect x="${x0}" y="${y0}" width="${nw}" height="${NH}" rx="11"/>${mark}${tag}<text class="n-t" x="${tx+tagW}" y="${y0+NH/2+3.5}">${esc(cut(it.name,Math.max(4,maxc)))}</text>${right}</g>`)})});
   const curve=(a,b,c)=>`<path class="l ${c}" d="M${a.x1},${a.cy}C${(a.x1+b.x0)/2},${a.cy} ${(a.x1+b.x0)/2},${b.cy} ${b.x0},${b.cy}"/>`;
   const st=on=>H?(on?'on':'off'):'';
-  ens.forEach(d=>PRE[d.id].forEach(pr=>{if(!directIds.has(d.id)||directIds.has(pr))return;const a=P['enabler'+pr],b=P['enabler'+d.id];if(a&&b)links.push(curve(a,b,'dep '+st(H&&H.en.has(pr)&&H.en.has(d.id))))}));
+  // dependencies: foundation -> enabler across columns as curves; within a column (a prerequisite that
+  // another milestone also requires directly, or a foundation of a foundation) as arcs on the right,
+  // drawn for the selected chain only to keep the chart readable
+  const gapR=gap*.9,arc=(a,b,c)=>{const bl=Math.min(gapR,10+Math.abs(b.cy-a.cy)*.25);
+    return `<path class="l ${c}" d="M${a.x1},${a.cy}C${a.x1+bl},${a.cy} ${b.x1+bl},${b.cy} ${b.x1},${b.cy}"/>`};
+  const back=(a,b,c)=>`<path class="l ${c}" d="M${a.x0},${a.cy}C${a.x0-22},${a.cy} ${b.x1+22},${b.cy} ${b.x1},${b.cy}"/>`;
+  ens.forEach(d=>PRE[d.id].forEach(pr=>{const a=P['enabler'+pr],b=P['enabler'+d.id];if(!a||!b)return;
+    const on=H&&H.en.has(pr)&&H.en.has(d.id);
+    if(!directIds.has(pr)&&directIds.has(d.id))links.push(curve(a,b,'dep '+st(on)));
+    else if(on)links.push(directIds.has(pr)===directIds.has(d.id)?arc(a,b,'dep on'):back(a,b,'dep on'))}));
   p.links.forEach(l=>{const a=P['enabler'+l.enabler],b=P['milestone'+l.milestone];if(a&&b)links.push(curve(a,b,st(H&&H.ms.has(l.milestone)&&H.en.has(l.enabler))))});
   p.mlinks.forEach(l=>{const a=P['milestone'+l.milestone],b=P['metric'+l.metric];if(a&&b)links.push(curve(a,b,st(H&&H.ms.has(l.milestone)&&H.mt.has(l.metric))))});
   mts.forEach(k=>{const a=P['metric'+k.id],b=P['process'+k.process];if(a&&b)links.push(curve(a,b,st(H&&H.mt.has(k.id))))});
   box.innerHTML=`<svg width="${W}" height="${Ht}" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Value chain">${links.join('')}${nodes.join('')}</svg>`;
-  q('.rm-legend').innerHTML='<span>Foundations are needed by enablers · enablers make milestones possible · milestones move metrics up their curve · metrics create value for processes</span><span>M = maturity level · $ = value per year at full adoption · dashed = prerequisite</span>'}
+  q('.rm-legend').innerHTML='<span>Foundations are needed by enablers · enablers make milestones possible · milestones move metrics up their curve · metrics create value for processes</span><span>M = maturity level · $ = value per year at full adoption · dashed = prerequisite · on a selection, lighter enablers are foundations (needed by the enablers it requires)</span>'}
 
 function render(){
   if(!S.p||!root())return;const H=highlight();

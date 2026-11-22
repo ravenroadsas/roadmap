@@ -1,6 +1,6 @@
-#' Application UI: four views. Roadmap (what, when, for what value),
-#' Scenario (what if: maturity targets, adoption, price, cost, acceleration),
-#' Frontier (which maturity targets are worth pursuing), Method (how it works).
+#' Application UI: four views, in the order a scenario is built.
+#' Scenario (maturity targets and levers), Frontier (which targets are worth
+#' pursuing), Roadmap (what, when, for what value, for the scenario), Method.
 app_ui <- function(request) {
   ctx <- app_context()
   shiny::fluidPage(
@@ -16,9 +16,9 @@ app_ui <- function(request) {
                tags$span(class = "brand-y", "2026 \u2013 2029")),
       tags$span(class = "user", shiny::textOutput("user", inline = TRUE))),
     shiny::tabsetPanel(id = "view", type = "tabs",
-      shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
       shiny::tabPanel("Scenario", value = "scenario", mod_scenario_ui("scenario", ctx$cfg, ctx$data)),
       shiny::tabPanel("Frontier", value = "frontier", mod_frontier_ui("frontier")),
+      shiny::tabPanel("Roadmap", value = "roadmap", mod_roadmap_ui("roadmap", ctx$data)),
       shiny::tabPanel("Method", value = "model", mod_model_ui("model")))
   )
 }

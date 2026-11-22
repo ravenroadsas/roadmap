@@ -21,3 +21,15 @@ test_that("the frontier holds the best NPV for each investment", {
   expect_equal(f$investment[1], 0)                            # everyone at the current level
   expect_equal(frontier_rows(data.frame(investment = c(1, 1, 2, 3), npv = c(5, 6, 4, 7))), c(2L, 4L))
 })
+
+test_that("the ROI frontier: best ROI for at least each investment, without zero-investment rows", {
+  d <- tiny_data(); g <- build_graph(d)
+  fr <- frontier_enumerate(d, g, tiny_cfg(discount_rate = 0.1))
+  f <- fr$points[fr$frontier_roi, ]
+  expect_false(anyNA(f$roi))
+  expect_true(all(diff(f$investment) > 0) && all(diff(f$roi) < 0))   # return dilutes as investment grows
+  expect_false(any(vapply(seq_len(nrow(f)), function(j)
+    any(fr$points$investment >= f$investment[j] & fr$points$roi > f$roi[j] + 1e-9, na.rm = TRUE), TRUE)))
+  expect_equal(frontier_rows(data.frame(investment = c(1, 2, 3, 4), roi = c(5, 6, 2, 3)), "roi"), c(2L, 4L))
+  expect_match(as.character(frontier_chart(fr, fr$base, y = "roi")), "ROI, %", fixed = TRUE)
+})

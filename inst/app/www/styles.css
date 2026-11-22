@@ -105,7 +105,7 @@ code{font-family:var(--mono);font-size:11.5px;background:none;color:var(--ink2);
 
 /* value chain */
 .n{cursor:pointer} .n rect{fill:var(--panel);stroke:var(--line)}
-.n.on rect{stroke:var(--ink)} .n.sel rect{fill:var(--sel);stroke:var(--ink);stroke-width:1.5} .n.off{opacity:.2}
+.n.on rect{stroke:var(--ink)} .n.on.found rect{stroke:var(--faint);stroke-dasharray:3 2} .n.on.found .n-t{fill:var(--ink2)} .n.sel rect{fill:var(--sel);stroke:var(--ink);stroke-width:1.5} .n.off{opacity:.2}
 .n.bad rect{stroke:var(--neg)} .n.bad .n-t{fill:var(--neg)}
 .n.process rect{fill:var(--soft)}
 .n-t{font:400 11.5px var(--sans);fill:var(--ink)}
@@ -256,6 +256,8 @@ code{font-family:var(--mono);font-size:11.5px;background:none;color:var(--ink2);
 .seg .radio-inline:first-child span{border-radius:4px 0 0 4px;margin-left:0} .seg .radio-inline:last-child span{border-radius:0 4px 4px 0}
 .seg .radio-inline:hover span{color:var(--ink)}
 .seg .radio-inline input:checked+span{background:var(--ink);border-color:var(--ink);color:#fff}
+.seg .radio-inline.below span{background:var(--soft);color:var(--faint);cursor:not-allowed;text-decoration:line-through;text-decoration-color:var(--line)}
+.seg .radio-inline.below:hover span{color:var(--faint)}
 .lev-h{margin-top:6px}
 .matsum{margin-top:26px}
 .matsum tr.chg td{background:#f7f9fb} .matsum td:first-child{padding-left:4px}
@@ -277,3 +279,11 @@ code{font-family:var(--mono);font-size:11.5px;background:none;color:var(--ink2);
 .fr-row{cursor:pointer} .fr-row:hover td{background:var(--soft)} .fr-row.on td{background:var(--sel)}
 .fr-tbl td,.fr-tbl th{padding-left:8px!important}
 @media (max-width:1100px){.fr-layout,.curves-row,.steps{grid-template-columns:minmax(0,1fr)}}
+.fr-axis{display:inline-block;margin-left:2px}
+.fr-axis .form-group{margin:0} .fr-axis .shiny-options-group{display:inline-flex;gap:0}
+.fr-axis .radio-inline{margin:0!important;padding:0!important;position:relative}
+.fr-axis .radio-inline input{position:absolute!important;opacity:0;pointer-events:none}
+.fr-axis .radio-inline span{display:block;font:600 12px var(--sans);padding:1px 9px;border:1px solid var(--line);margin-left:-1px;color:var(--muted);cursor:pointer;background:var(--panel)}
+.fr-axis .radio-inline:first-child span{border-radius:4px 0 0 4px;margin-left:0} .fr-axis .radio-inline:last-child span{border-radius:0 4px 4px 0}
+.fr-axis .radio-inline input:checked+span{background:var(--ink);border-color:var(--ink);color:#fff}
+.fr-pt.clip{stroke-dasharray:2 2} .fr-clip{font:500 10.5px var(--mono);fill:var(--ink2)}

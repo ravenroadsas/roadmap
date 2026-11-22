@@ -54,3 +54,23 @@ test_that("views render: headline, detail panels, charts, diagram, levels", {
   fr <- frontier_enumerate(d, g, tiny_cfg())
   expect_match(as.character(frontier_chart(fr, fr$base)), "fr-line", fixed = TRUE)
 })
+
+test_that("nothing in scope (every process at today's level) renders zeros, not errors", {
+  d <- tiny_data(); g <- build_graph(d)
+  m <- run_model(d, g, tiny_cfg(), targets = c(P1 = 2, P2 = 1))
+  b <- run_model(d, g, tiny_cfg())
+  txt <- function(x) gsub("\\s+", " ", as.character(x))
+  h <- txt(headline(d, m, compare = portfolio(b)))
+  expect_match(h, "$0M", fixed = TRUE)
+  expect_match(h, "no milestone in scope", fixed = TRUE)
+  expect_false(grepl("NaN", as.character(cash_chart(portfolio(m), portfolio(m)))))
+  expect_match(txt(maturity_ui(d, m, b)), "no longer needed", fixed = TRUE)
+  expect_match(txt(detail_ui(d, m, NULL)), "0 of 4 milestones", fixed = TRUE)
+})
+
+test_that("maturity selector shows M1..M5 with levels below today disabled", {
+  x <- as.character(maturity_input(NS("s"), 1, tiny_data()$process[1, ]))     # P1: today M2
+  expect_equal(lengths(regmatches(x, gregexpr('type="radio"', x))), 5)
+  expect_match(x, 'value="1" disabled', fixed = TRUE)
+  expect_false(grepl('value="2" disabled', x, fixed = TRUE))
+})

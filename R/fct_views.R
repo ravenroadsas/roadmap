@@ -20,8 +20,8 @@ headline <- function(data, model, compare = NULL, note = NULL) {
     fig("Value", fmt_musd(p$total_value, 0), paste("realised to", h), delta(p$total_value, compare$total_value)),
     fig("Net present value", fmt_musd(p$npv, 0), fmt_pct(model$cfg$discount_rate), delta(p$npv, compare$npv)),
     fig("All milestones ready", q_of(p$last_ready),
-        if (n_late) tags$span(class = "neg", sprintf("%d late", n_late)) else "all on time",
-        if (!is.null(compare) && !is.na(compare$last_ready) && abs(p$last_ready - compare$last_ready) > 0.01)
+        if (n_late) tags$span(class = "neg", sprintf("%d late", n_late)) else if (is.na(p$last_ready)) "no milestone in scope" else "all on time",
+        if (!is.null(compare) && !is.na(p$last_ready) && !is.na(compare$last_ready) && abs(p$last_ready - compare$last_ready) > 0.01)
           tags$span(class = paste("fig-d", if (p$last_ready < compare$last_ready) "pos" else "neg"),
                     sprintf("%+.0f mo", (p$last_ready - compare$last_ready) * 12))),
     if (!is.null(note)) tags$div(class = "fig-note", note))
@@ -41,6 +41,7 @@ cash_chart <- function(p, b, W = 760, H = 260) {
   yrs <- p$years
   L <- 52; R <- 70; T <- 18; B <- 28
   lo <- min(0, -p$cost, p$cum_net, b$cum_net); hi <- max(0, p$value, p$cum_net, b$cum_net)
+  if (hi - lo < 1e-9) hi <- lo + 10                         # nothing in scope: a flat zero line
   pad <- (hi - lo) * 0.06; lo <- lo - pad; hi <- hi + pad
   sx <- function(i) L + (i - 0.5) / length(yrs) * (W - L - R)
   sy <- function(v) T + (hi - v) / (hi - lo) * (H - T - B)

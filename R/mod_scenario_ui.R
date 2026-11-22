@@ -1,11 +1,15 @@
-#' One process's maturity target: segmented M(current)..M5
+#' One process's maturity target: segmented M1..M5, levels below today greyed out
 maturity_input <- function(ns, i, pr) {
-  lv <- pr$current_level:5
+  rb <- shiny::radioButtons(ns(paste0("t_", i)), NULL, inline = TRUE, selected = pr$target_level,
+                            choiceValues = 1:5, choiceNames = paste0("M", 1:5))
+  if (pr$current_level > 1) {
+    rb <- htmltools::tagQuery(rb)$find("input")$
+      filter(function(x, i) as.integer(x$attribs$value) < pr$current_level)$
+      addAttrs(disabled = NA)$parent()$addClass("below")$allTags()
+  }
   tags$div(class = "mat",
     tags$div(class = "mat-h", tags$span(class = "mat-n", pr$name), tags$span(class = "mat-c", paste("today", lvl(pr$current_level)))),
-    tags$div(class = "seg",
-      shiny::radioButtons(ns(paste0("t_", i)), NULL, inline = TRUE, selected = pr$target_level,
-                          choiceValues = lv, choiceNames = paste0("M", lv))))
+    tags$div(class = "seg", rb))
 }
 
 #' Scenario view: maturity targets and levers | what changes

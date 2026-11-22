@@ -24,9 +24,9 @@ INVESTMENT → ENABLERS ────┴──► MILESTONES ──► METRICS �
 
 | View | What it answers |
 |---|---|
-| **Roadmap** | What, when, for what value. Chronogram: per process, its maturity over time (a strip from today's level to the target) and its milestones (numbered by level, red when late), above the enablers by group › concept. Value chain: Foundations → Enablers → Milestones → Metrics → Processes. Click anything to see what it depends on. |
-| **Scenario** | What if: the **maturity target of each process** (M1–M5), adoption time, oil price, cost multiplier, acceleration. Headline and cumulative net value against the base case; by process, the change in milestones, value, cost and NPV; which enablers come in or drop out. |
-| **Frontier** | Which combination of targets is worth pursuing. Every combination is evaluated (each process from its current level to M5) and plotted as investment vs NPV; the efficient frontier holds the combinations with the highest NPV for their investment (ROI in the tooltip and table). Pick one and apply it to the Scenario view. |
+| **Scenario** | What if: the **maturity target of each process** (M1–M5; levels below today are greyed out), adoption time, oil price, cost multiplier, acceleration. Headline and cumulative net value against the base case; by process, the change in milestones, value, cost and NPV; which enablers come in or drop out. The other views follow this scenario. |
+| **Frontier** | Which combination of targets is worth pursuing. Every combination is evaluated (each process from its current level to M5) and plotted against investment, with **NPV or ROI** on the vertical axis. NPV frontier: the highest NPV for each investment. ROI frontier: the best ROI for investing at least that much (the cheapest portfolios always have the best ratio, so this shows how return dilutes as the programme grows). Pick a portfolio and apply it to the Scenario view. |
+| **Roadmap** | What, when, for what value, for the scenario's targets. Chronogram: per process, its maturity over time and its milestones (numbered by level, red when late), above the enablers by group › concept. Value chain: Foundations → Enablers → Milestones → Metrics → Processes; selecting an item draws its whole chain, with foundations shown lighter. |
 | **Method** | How it works: the logic diagram, the M1–M5 levels and how to assess a process, the impact curves, definitions, and the data workbook (download, template). |
 
 ## Calculation
@@ -39,7 +39,7 @@ INVESTMENT → ENABLERS ────┴──► MILESTONES ──► METRICS �
 - **Impact curves** (sheet `curve`, % of impact at M1…M5; editable): *Diminishing returns* 0-45-75-92-100 (production), *Threshold* 0-5-15-55-100 (man-hours), *Linear*, *S-curve* 0-10-45-85-100 (cycle times, NPT).
 - **Cost / year**: capex over the build, concept people during the build (partner at a premium), opex from go-live; all × cost multiplier.
 - **Acceleration**: duration × r^(−scalability), start fixed; effort × r^(1−scalability). The solver back-calculates r per enabler for the milestones in scope.
-- **Frontier**: exact enumeration with the same formulas, on plan resources and the Scenario levers. Costs are precomputed per enabler and switched on by the lowest milestone level that needs them; a metric's value is precomputed for every combination of the few processes whose milestones move it. 65,536 combinations take about half a second.
+- **Frontier**: exact enumeration with the same formulas, on plan resources and the Scenario levers. On the ROI chart, portfolios under 5% of the largest investment sit on the top edge (labelled) so they don't flatten the rest. Costs are precomputed per enabler and switched on by the lowest milestone level that needs them; a metric's value is precomputed for every combination of the few processes whose milestones move it. 65,536 combinations take about half a second.
 
 ## Data
 

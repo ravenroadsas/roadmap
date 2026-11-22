@@ -10,7 +10,9 @@ mod_frontier_server <- function(id, data, graph, scenario, apply, goto) {
       frontier_enumerate(data, graph, sc$cfg, sc$base)
     }) |> shiny::bindCache(scenario()$cfg)
     scen_row <- reactive(match_targets(fr()$targets, scenario()$targets))
-    best <- reactive({ f <- fr(); f$frontier[which.max(f$points$npv[f$frontier])] })
+    axis <- reactive(if (identical(input$axis, "roi")) "roi" else "npv")
+    front <- reactive(if (axis() == "roi") fr()$frontier_roi else fr()$frontier)
+    best <- reactive({ f <- front(); f[which.max(fr()$points[[axis()]][f])] })
     pick <- reactive({
       i <- suppressWarnings(as.integer(input$pick))
       if (length(i) && !is.na(i) && i >= 1 && i <= fr()$n) i else best()
@@ -22,19 +24,22 @@ mod_frontier_server <- function(id, data, graph, scenario, apply, goto) {
                                                   tags$div(class = "fig-v", value), tags$div(class = "fig-s", sub))
       tags$div(class = "figs",
         fig("Combinations", formatC(f$n, format = "d", big.mark = ","), if (f$reduced) "current, base or M5 per process" else "every level per process"),
-        fig("On the frontier", length(f$frontier), "no other costs less and earns more"),
-        fig("Highest NPV", fmt_musd(pts$npv[b], 0), sprintf("for %s invested", fmt_musd(pts$investment[b], 0))),
-        fig("Base case", fmt_musd(pts$npv[f$base], 0), sprintf("NPV for %s \u00b7 %s", fmt_musd(pts$investment[f$base], 0),
-            if (f$base %in% f$frontier) "on the frontier" else "below the frontier")),
+        fig("On the frontier", length(front()), if (axis() == "roi") "best ROI for investing at least that much"
+            else "no other costs less and has a higher NPV"),
+        if (axis() == "roi") fig("Highest ROI", fmt_pct(pts$roi[b]), sprintf("for %s invested \u00b7 NPV %s", fmt_musd(pts$investment[b], 0), fmt_musd(pts$npv[b], 0)))
+        else fig("Highest NPV", fmt_musd(pts$npv[b], 0), sprintf("for %s invested \u00b7 ROI %s", fmt_musd(pts$investment[b], 0), fmt_pct(pts$roi[b]))),
+        fig("Base case", if (axis() == "roi") fmt_pct(pts$roi[f$base]) else fmt_musd(pts$npv[f$base], 0),
+            sprintf("%s for %s \u00b7 %s", toupper(axis()), fmt_musd(pts$investment[f$base], 0),
+                    if (f$base %in% front()) "on the frontier" else "below the frontier")),
         tags$div(class = "fig-note", "Levers from the Scenario view \u00b7 plan resources \u00b7 horizon ", scenario()$cfg$horizon_end))
     })
-    output$chart <- shiny::renderUI(frontier_chart(fr(), scen_row(), pick()))
+    output$chart <- shiny::renderUI(frontier_chart(fr(), scen_row(), pick(), axis()))
 
     output$pick_ui <- shiny::renderUI({
       f <- fr(); i <- pick(); pt <- f$points[i, ]
       tg <- f$targets[i, ]
-      title <- if (i == best()) "Highest NPV" else if (i == f$base) "Base case" else if (i %in% f$frontier)
-        sprintf("Frontier portfolio %d", match(i, f$frontier)) else "Selected combination"
+      title <- if (i == best()) (if (axis() == "roi") "Highest ROI" else "Highest NPV") else if (i == f$base) "Base case" else if (i %in% front())
+        sprintf("Frontier portfolio %d", match(i, front())) else "Selected combination"
       tagList(
         tags$div(class = "pane-h", tags$span(title)),
         facts(Investment = fmt_musd(pt$investment, 1), Value = paste(fmt_musd(pt$value, 1), "to horizon"),
@@ -52,9 +57,11 @@ mod_frontier_server <- function(id, data, graph, scenario, apply, goto) {
     })
 
     output$table <- shiny::renderUI({
-      f <- fr(); x <- f$points[f$frontier, ]; tg <- f$targets[f$frontier, , drop = FALSE]
+      f <- fr(); x <- f$points[front(), ]; tg <- f$targets[front(), , drop = FALSE]
       tags$div(class = "fr-tbl",
-        tags$div(class = "pane-h", tags$span("Frontier portfolios"), tags$span(class = "hint", "from the smallest investment up \u00b7 click a row")),
+        tags$div(class = "pane-h", tags$span("Frontier portfolios"), tags$span(class = "hint", paste(
+          if (axis() == "roi") "best ROI for at least each investment" else "highest NPV for each investment",
+          "\u00b7 columns are processes (hover for the name) \u00b7 click a row"))),
         tags$table(class = "tt",
           tags$thead(tags$tr(tags$th("#"), tags$th(class = "r", "Investment"), tags$th(class = "r", "NPV"), tags$th(class = "r", "ROI"),
                              lapply(seq_len(nrow(p)), function(k) tags$th(class = "r", title = p$name[k], `data-tip` = htmltools::htmlEscape(p$name[k]), p$id[k])))),
